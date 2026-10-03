@@ -1,0 +1,34 @@
+name: Assemble Decision Index suite
+description: Download all published shards, rebuild the canonical frozen suite, and verify upstream hashes.
+
+inputs:
+  python-path:
+    description: Python interpreter from the pinned Decision Index environment.
+    required: true
+  decision-index:
+    description: Path to Decision Index CLI.
+    required: true
+  repo:
+    description: Hugging Face dataset repository ID containing shards.
+    required: true
+  output-dir:
+    description: Frozen suite output directory.
+    required: false
+    default: artifacts/frozen-suite
+  work-dir:
+    description: Temporary assembly workspace.
+    required: false
+    default: work/assemble
+
+runs:
+  using: composite
+  steps:
+    - name: Assemble frozen suite
+      shell: bash
+      env:
+        PYTHON_PATH: ${{ inputs.python-path }}
+        DECISION_INDEX: ${{ inputs.decision-index }}
+        HF_REPO: ${{ inputs.repo }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/assemble_suite.py" --repo "$HF_REPO" --decision-index "$DECISION_INDEX" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
