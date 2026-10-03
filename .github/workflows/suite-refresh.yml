@@ -38,7 +38,8 @@ jobs:
         id: matrix
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
-        run: "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
+        run: >-
+          "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
 
   base:
     name: Base / ${{ matrix.key }}
@@ -97,7 +98,8 @@ jobs:
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
           SOURCE: work/base-${{ matrix.key }}/artifacts/benchmark-suite/normalized
           DEST: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/base/${{ matrix.key }}/normalized
-        run: "$HF" upload "$HF_SUITE_REPO" "$SOURCE" "$DEST" --repo-type dataset
+        run: >-
+          "$HF" upload "$HF_SUITE_REPO" "$SOURCE" "$DEST" --repo-type dataset
 
   added:
     name: Added / ${{ matrix.key }}
@@ -158,7 +160,8 @@ jobs:
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
           SOURCE: work/added-${{ matrix.key }}/artifacts/benchmark-suite/release-v2-rebuilt/added-rows.jsonl
           DEST: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/added/${{ matrix.key }}/added-rows.jsonl
-        run: "$HF" upload "$HF_SUITE_REPO" "$SOURCE" "$DEST" --repo-type dataset
+        run: >-
+          "$HF" upload "$HF_SUITE_REPO" "$SOURCE" "$DEST" --repo-type dataset
 
   assemble:
     name: Assemble canonical suite
