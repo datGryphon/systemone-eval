@@ -1,0 +1,30 @@
+name: Build Decision Index base shard
+description: Rebuild one Decision Index base catalog and retain only normalized artifacts.
+
+inputs:
+  decision-index:
+    description: Path to Decision Index CLI.
+    required: true
+  catalog-id:
+    description: Decision Index base catalog ID.
+    required: true
+  output-dir:
+    description: Shard artifact output directory.
+    required: false
+    default: artifacts/base-shard
+  work-dir:
+    description: Temporary Decision Index rebuild workspace.
+    required: false
+    default: work
+
+runs:
+  using: composite
+  steps:
+    - name: Build base shard
+      shell: bash
+      env:
+        DECISION_INDEX: ${{ inputs.decision-index }}
+        CATALOG_ID: ${{ inputs.catalog-id }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: python3 "$GITHUB_WORKSPACE/scripts/build_base_shard.py" --decision-index "$DECISION_INDEX" --catalog-id "$CATALOG_ID" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
