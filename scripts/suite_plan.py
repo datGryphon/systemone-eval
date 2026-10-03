@@ -8,12 +8,22 @@ from decision_index.suite.build.adapters_added import ORDER
 from decision_index.suite.build.rebuild import BUILDERS
 
 
+# BRIGHT's adapter reads ToolRet's task/category mapping even when only BRIGHT
+# is requested, so those source acquisitions must share one shard worker.
+SOURCE_DEPENDENCY_GROUP = {2: "retrieval", 36: "retrieval"}
+
+
 def base_groups() -> list[dict]:
     grouped: dict[tuple[str, str], list[int]] = defaultdict(list)
     builders = {}
 
     for catalog_id, builder in BUILDERS.items():
-        identity = (builder.__module__, builder.__qualname__)
+        dependency = SOURCE_DEPENDENCY_GROUP.get(int(catalog_id))
+        identity = (
+            ("source-dependency", dependency)
+            if dependency
+            else (builder.__module__, builder.__qualname__)
+        )
         grouped[identity].append(int(catalog_id))
         builders[identity] = builder
 
