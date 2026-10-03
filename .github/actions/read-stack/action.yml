@@ -1,32 +1,20 @@
 name: Read evaluation stack
-description: Publish pinned dependency versions from stack.json.
-
-inputs:
-  path:
-    description: Stack configuration path.
-    required: false
-    default: stack.json
+description: Publish pins from stack.json.
 
 outputs:
   llama-cpp-ref:
-    description: Pinned llama.cpp ref.
     value: ${{ steps.stack.outputs.llama-cpp-ref }}
   decision-index-ref:
-    description: Pinned Decision Index ref.
     value: ${{ steps.stack.outputs.decision-index-ref }}
   decision-index-edition:
-    description: Pinned Decision Index edition.
     value: ${{ steps.stack.outputs.decision-index-edition }}
 
 runs:
   using: composite
   steps:
-    - name: Read stack
-      id: stack
+    - id: stack
       shell: bash
-      env:
-        STACK_PATH: ${{ inputs.path }}
       run: |
-        echo "llama-cpp-ref=$(jq -er '.llama_cpp.ref' "$STACK_PATH")" >> "$GITHUB_OUTPUT"
-        echo "decision-index-ref=$(jq -er '.decision_index.ref' "$STACK_PATH")" >> "$GITHUB_OUTPUT"
-        echo "decision-index-edition=$(jq -er '.decision_index.edition' "$STACK_PATH")" >> "$GITHUB_OUTPUT"
+        echo "llama-cpp-ref=$(jq -er '.llama_cpp.ref' stack.json)" >> "$GITHUB_OUTPUT"
+        echo "decision-index-ref=$(jq -er '.decision_index.ref' stack.json)" >> "$GITHUB_OUTPUT"
+        echo "decision-index-edition=$(jq -er '.decision_index.edition' stack.json)" >> "$GITHUB_OUTPUT"
