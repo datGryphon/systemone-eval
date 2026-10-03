@@ -44,7 +44,7 @@ runs:
         if [[ "$INSTALL_REBUILD" == "true" ]]; then
           target="$SOURCE_PATH[rebuild]"
         fi
-        "$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" -m pip install --disable-pip-version-check "$target"
+        "$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" -m pip install --disable-pip-version-check --editable "$target"
 
     - name: Publish executable
       id: paths
