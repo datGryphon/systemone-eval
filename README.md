@@ -3,15 +3,13 @@
 Reproducible CPU evaluation of local decision models through llama.cpp's native
 `/v1/systemone` API.
 
-The project deliberately composes existing tools rather than owning a benchmark
-framework:
+The project composes upstream tools rather than owning a benchmark framework:
 
 - **llama.cpp** provides GGUF inference and `/v1/systemone`.
-- **Decision Index** provides benchmark rows, validation, quality/calibration scoring,
-  and the HTTP engine.
+- **Decision Index** provides benchmark acquisition, normalization, frozen-suite
+  validation, quality/calibration scoring, and the HTTP engine.
+- **Hugging Face's `hf` CLI** stores and retrieves private suite shards.
 - **GitHub-hosted Ubuntu runners** provide the common CPU/RAM environment.
-- A **private Hugging Face dataset repo** stores Decision Index build shards and the
-  verified frozen suite.
 
 Evaluation artifacts record request timing, loaded-idle llama-server RSS, peak
 llama-server RSS, model profile, runner information, and the exact evaluation stack.
@@ -24,47 +22,40 @@ llama-server RSS, model profile, runner information, and the exact evaluation st
 - exact Decision Index Git ref
 - Decision Index edition
 
-Suite artifacts are namespaced by the Decision Index edition and Git ref. Changing
-llama.cpp therefore creates a new evaluation profile without unnecessarily rebuilding
-benchmark data. Evaluation results record the full stack.
-
-`models.json` contains the model/quant profiles exercised by the workflows.
+Suite artifacts are namespaced by the Decision Index edition and Git ref. Evaluation
+results record the full stack.
 
 ## CI
 
-The normal PR workflow proves three contracts:
+Normal PR CI proves:
 
-1. Julia-1 Q8 loads in the pinned llama.cpp and serves valid typed decisions.
-2. The pinned Decision Index HTTP engine can evaluate that local `/v1/systemone`
-   endpoint.
-3. Both Decision Index build paths can be isolated:
-   - a base benchmark is reduced to normalized build artifacts;
-   - an added 0.2.x benchmark is reduced to its deterministic row shard.
+1. Julia-1 Q8 loads in the pinned llama.cpp and serves typed decisions.
+2. The pinned Decision Index HTTP engine can evaluate that local endpoint.
+3. A shared Decision Index base normalizer can be rebuilt with all catalog IDs it
+   requires.
+4. An added 0.2.x benchmark can be rebuilt independently.
+5. On same-repository PRs, both shard types round-trip through the private Hugging
+   Face dataset using the upstream `hf upload` and `hf download` commands.
 
-The integration run captures loaded-idle RSS and the process high-water mark
-(`VmHWM`) so peak model RAM remains comparable with quality and latency.
+No benchmark rows are published as GitHub Actions artifacts.
 
-Benchmark rows produced by the shard smoke jobs are not uploaded as public GitHub
-Actions artifacts. Only their manifests and rebuild logs are retained there.
+The integration run captures loaded-idle RSS and the llama-server process high-water
+mark (`VmHWM`) so peak RAM remains comparable with quality and latency.
 
 ## Private suite storage
 
-The suite refresh workflow expects:
+The workflows expect:
 
 - Actions secret `HF_TOKEN_READ`
 - Actions secret `HF_TOKEN_WRITE`
-- repository variable `HF_SUITE_REPO`, set to an existing **private Hugging Face
-  dataset repo** such as `owner/systemone-eval-data`
+- repository variable `HF_SUITE_REPO` pointing to an existing private dataset repo
 
-The write token must be able to write that dataset and read any gated upstream
-datasets required by Decision Index.
-
-Artifacts are stored under:
+Artifacts live under:
 
 ```text
 decision-index/<edition>/<decision-index-git-ref>/
-├── base/<builder-group>/
-├── added/<catalog-id>/
+├── base/<builder-group>/normalized/
+├── added/<catalog-id>/added-rows.jsonl
 └── suite/
 ```
 
@@ -72,22 +63,21 @@ decision-index/<edition>/<decision-index-git-ref>/
 
 `.github/workflows/suite-refresh.yml` is manual-only.
 
-It derives the build plan from the pinned Decision Index source. Base benchmarks are
-grouped by their upstream normalizer function, because several catalog IDs share one
-builder and that builder requires all of its source datasets to be present together.
-Each unique base builder group and each added benchmark runs in an independent
-GitHub-hosted job, publishing only the reduced shard artifact to the private HF
-dataset.
+The plan is derived directly from the pinned Decision Index source. Base catalog IDs
+that share one upstream normalizer are rebuilt together; added benchmarks are rebuilt
+independently. Each job runs Decision Index's own `suite rebuild` command and sends
+only its reduced output to the private dataset with `hf upload`.
 
-After all shard jobs succeed, the assembly job:
+After all shards exist, the assembly job uses `hf download`, stages the files into
+the layout Decision Index expects, and then delegates the canonical work back to
+Decision Index:
 
-1. downloads every expected shard;
-2. reconstructs the normalized base workspace;
-3. freezes the base suite using upstream Decision Index code;
-4. concatenates added shards in upstream canonical order;
-5. verifies the upstream base and added SHA-256 values;
-6. imports/verifies the complete pinned suite with Decision Index; and
-7. publishes the verified frozen suite back to the private HF dataset.
+1. `suite rebuild --skip-download --skip-normalize` recreates the frozen base rows;
+2. added shards are concatenated in Decision Index's published `ORDER`;
+3. `suite import` enforces the edition's canonical hashes;
+4. `suite verify` verifies the completed suite; and
+5. `hf upload` publishes that verified suite.
 
-A suite is not considered valid merely because every shard built successfully. The
-canonical upstream hashes must match.
+The only project-owned suite glue is the small planner/stager needed because Decision
+Index does not currently expose shared-builder sharding or recombination as CLI
+commands.
