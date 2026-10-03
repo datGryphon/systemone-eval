@@ -1,0 +1,43 @@
+name: Publish Decision Index artifact
+description: Publish a validated shard or frozen suite to the private Hugging Face dataset.
+
+inputs:
+  python-path:
+    description: Python interpreter with huggingface_hub installed.
+    required: true
+  repo:
+    description: Hugging Face dataset repository ID.
+    required: true
+  kind:
+    description: Artifact kind (base, added, or suite).
+    required: true
+  catalog-id:
+    description: Catalog ID for base/added shards.
+    required: false
+    default: ''
+  source:
+    description: Artifact directory to publish.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Publish catalog shard
+      if: inputs.kind != 'suite'
+      shell: bash
+      env:
+        PYTHON_PATH: ${{ inputs.python-path }}
+        HF_REPO: ${{ inputs.repo }}
+        ARTIFACT_KIND: ${{ inputs.kind }}
+        CATALOG_ID: ${{ inputs.catalog-id }}
+        SOURCE: ${{ inputs.source }}
+      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind "$ARTIFACT_KIND" --catalog-id "$CATALOG_ID" --source "$SOURCE"
+
+    - name: Publish frozen suite
+      if: inputs.kind == 'suite'
+      shell: bash
+      env:
+        PYTHON_PATH: ${{ inputs.python-path }}
+        HF_REPO: ${{ inputs.repo }}
+        SOURCE: ${{ inputs.source }}
+      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind suite --source "$SOURCE"
