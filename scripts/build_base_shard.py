@@ -8,6 +8,7 @@ import threading
 import time
 from pathlib import Path
 
+from base_groups import base_builder_groups
 from stack_config import load_stack
 
 
@@ -61,14 +62,32 @@ def run_logged(command: list[str], log_path: Path) -> int:
         return process.wait()
 
 
+def expected_group(catalog_ids: list[int]) -> dict:
+    wanted = sorted(catalog_ids)
+    for group in base_builder_groups():
+        if group["catalog_ids"] == wanted:
+            return group
+    raise ValueError(
+        f"catalog IDs do not form one complete Decision Index builder group: {wanted}"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--decision-index", required=True, type=Path)
-    parser.add_argument("--catalog-id", required=True, type=int)
+    parser.add_argument("--catalog-ids-json", required=True)
     parser.add_argument("--stack", required=True, type=Path)
     parser.add_argument("--work", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
+
+    raw_ids = json.loads(args.catalog_ids_json)
+    if not isinstance(raw_ids, list) or not raw_ids or not all(
+        isinstance(value, int) for value in raw_ids
+    ):
+        raise ValueError("--catalog-ids-json must be a non-empty JSON integer array")
+    group = expected_group(raw_ids)
+    catalog_ids = group["catalog_ids"]
 
     stack = load_stack(args.stack)
     args.output.mkdir(parents=True, exist_ok=True)
@@ -88,7 +107,7 @@ def main() -> int:
                 "--work",
                 str(args.work),
                 "--only",
-                str(args.catalog_id),
+                *[str(catalog_id) for catalog_id in catalog_ids],
             ],
             args.output / "rebuild.log",
         )
@@ -123,7 +142,9 @@ def main() -> int:
     manifest = {
         "decision_index": stack["decision_index"],
         "kind": "decision-index-base-normalized-shard",
-        "catalog_id": args.catalog_id,
+        "group_key": group["key"],
+        "builder": group["builder"],
+        "catalog_ids": catalog_ids,
         "build_edition": "0.1",
         "build_wall_ms": build_wall_ms,
         "normalized_files": manifest_files,
