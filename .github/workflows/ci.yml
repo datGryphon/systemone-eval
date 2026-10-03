@@ -26,9 +26,6 @@ jobs:
         id: stack
         uses: ./.github/actions/read-stack
 
-      - name: Record runner
-        run: python3 scripts/runner_info.py artifacts/runner.json
-
       - name: Set up llama.cpp
         id: llama
         uses: ./.github/actions/setup-llama
