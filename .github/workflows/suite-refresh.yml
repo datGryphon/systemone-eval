@@ -75,7 +75,28 @@ jobs:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
+      - name: Check for existing base shard
+        id: shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
+          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
+          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
+          KEY: ${{ matrix.key }}
+        run: |
+          rm -rf /tmp/hf-shard-check
+          "$HF" download "$HF_SUITE_REPO" --repo-type dataset \
+            --include "decision-index/$EDITION/$DI_REF/base/$KEY/normalized/*.jsonl" \
+            --local-dir /tmp/hf-shard-check || true
+          if find /tmp/hf-shard-check -name '*.jsonl' -type f -print -quit | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Rebuild base shard
+        if: steps.shard.outputs.exists != 'true'
         uses: ./.github/actions/build-decision-index-base-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
@@ -85,6 +106,7 @@ jobs:
           work-dir: work/base-${{ matrix.key }}
 
       - name: Publish normalized shard
+        if: steps.shard.outputs.exists != 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
           HF: ${{ steps.decision-index.outputs.hf-path }}
@@ -125,7 +147,27 @@ jobs:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
+      - name: Check for existing added shard
+        id: shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
+          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
+          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
+          KEY: ${{ matrix.key }}
+        run: |
+          rm -rf /tmp/hf-shard-check
+          if "$HF" download "$HF_SUITE_REPO" \
+            "decision-index/$EDITION/$DI_REF/added/$KEY/added-rows.jsonl" \
+            --repo-type dataset --local-dir /tmp/hf-shard-check; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Rebuild added shard
+        if: steps.shard.outputs.exists != 'true'
         uses: ./.github/actions/build-decision-index-added-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
@@ -136,6 +178,7 @@ jobs:
           work-dir: work/added-${{ matrix.key }}
 
       - name: Publish added shard
+        if: steps.shard.outputs.exists != 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
           HF: ${{ steps.decision-index.outputs.hf-path }}
