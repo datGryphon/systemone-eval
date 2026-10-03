@@ -1,35 +1,26 @@
 name: Build Decision Index base shard
-description: Rebuild one complete Decision Index base builder group and retain normalized artifacts.
+description: Rebuild one complete Decision Index base builder group.
 
 inputs:
-  python-path:
-    description: Python interpreter from the pinned Decision Index environment.
-    required: true
   decision-index:
     description: Path to Decision Index CLI.
     required: true
   catalog-ids:
-    description: JSON array of every catalog ID handled by one shared normalizer.
+    description: Space-separated catalog IDs handled by one shared normalizer.
     required: true
-  output-dir:
-    description: Shard artifact output directory.
-    required: false
-    default: artifacts/base-shard
   work-dir:
     description: Temporary Decision Index rebuild workspace.
-    required: false
-    default: work
+    required: true
 
 runs:
   using: composite
   steps:
-    - name: Build base shard
+    - name: Rebuild base builder group
       shell: bash
       env:
-        PYTHON_PATH: ${{ inputs.python-path }}
         DECISION_INDEX: ${{ inputs.decision-index }}
         CATALOG_IDS: ${{ inputs.catalog-ids }}
-        OUTPUT_DIR: ${{ inputs.output-dir }}
         WORK_DIR: ${{ inputs.work-dir }}
-      run: >-
-        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/build_base_shard.py" --decision-index "$DECISION_INDEX" --catalog-ids-json "$CATALOG_IDS" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
+      run: |
+        read -ra ids <<< "$CATALOG_IDS"
+        "$DECISION_INDEX" suite rebuild --edition 0.1 --work "$WORK_DIR" --only "${ids[@]}"
