@@ -34,10 +34,9 @@ Normal PR CI proves:
 3. A shared Decision Index base normalizer can be rebuilt with all catalog IDs it
    requires.
 4. An added 0.2.x benchmark can be rebuilt independently.
-5. On same-repository PRs, both shard types round-trip through the private Hugging
-   Face dataset using the upstream `hf upload` and `hf download` commands.
 
-No benchmark rows are published as GitHub Actions artifacts.
+No benchmark rows are published as GitHub Actions artifacts. Private Hub writes only
+occur in the explicit suite-refresh workflow.
 
 The integration run captures loaded-idle RSS and the llama-server process high-water
 mark (`VmHWM`) so peak RAM remains comparable with quality and latency.
