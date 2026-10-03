@@ -16,34 +16,64 @@ def artifact_root(stack: dict) -> str:
     return f"decision-index/{decision_index['edition']}/{decision_index['ref']}"
 
 
-def artifact_prefix(stack: dict, kind: str, catalog_id: int | None = None) -> str:
+def artifact_prefix(
+    stack: dict,
+    kind: str,
+    catalog_id: int | None = None,
+    group_key: str | None = None,
+) -> str:
     root = artifact_root(stack)
     if kind == "suite":
-        if catalog_id is not None:
-            raise ValueError("suite artifacts do not take a catalog ID")
+        if catalog_id is not None or group_key is not None:
+            raise ValueError("suite artifacts do not take a catalog ID or group key")
         return f"{root}/suite"
-    if kind not in {"base", "added"}:
-        raise ValueError(f"unknown artifact kind: {kind}")
-    if catalog_id is None:
-        raise ValueError(f"{kind} artifacts require a catalog ID")
-    return f"{root}/{kind}/{catalog_id:03d}"
+    if kind == "base":
+        if not group_key or catalog_id is not None:
+            raise ValueError("base artifacts require only a builder group key")
+        return f"{root}/base/{group_key}"
+    if kind == "added":
+        if catalog_id is None or group_key is not None:
+            raise ValueError("added artifacts require only a catalog ID")
+        return f"{root}/added/{catalog_id:03d}"
+    raise ValueError(f"unknown artifact kind: {kind}")
 
 
-def validate_shard(source: Path, stack: dict, kind: str, catalog_id: int) -> dict:
+def validate_base_shard(
+    source: Path,
+    stack: dict,
+    group_key: str,
+    catalog_ids: list[int],
+) -> dict:
     manifest_path = source / "manifest.json"
     if not manifest_path.exists():
         raise ValueError(f"missing shard manifest: {manifest_path}")
     manifest = json.loads(manifest_path.read_text())
     if manifest.get("decision_index") != stack["decision_index"]:
         raise ValueError("shard Decision Index provenance does not match stack.json")
-    if manifest.get("catalog_id") != catalog_id:
-        raise ValueError("shard catalog ID does not match target")
-    expected_kind = {
-        "base": "decision-index-base-normalized-shard",
-        "added": "decision-index-added-rows-shard",
-    }[kind]
-    if manifest.get("kind") != expected_kind:
+    if manifest.get("kind") != "decision-index-base-normalized-shard":
         raise ValueError(f"unexpected shard kind: {manifest.get('kind')}")
+    if manifest.get("group_key") != group_key:
+        raise ValueError("base shard group key does not match target")
+    if manifest.get("catalog_ids") != sorted(catalog_ids):
+        raise ValueError("base shard catalog IDs do not match target")
+    return manifest
+
+
+def validate_added_shard(
+    source: Path,
+    stack: dict,
+    catalog_id: int,
+) -> dict:
+    manifest_path = source / "manifest.json"
+    if not manifest_path.exists():
+        raise ValueError(f"missing shard manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text())
+    if manifest.get("decision_index") != stack["decision_index"]:
+        raise ValueError("shard Decision Index provenance does not match stack.json")
+    if manifest.get("kind") != "decision-index-added-rows-shard":
+        raise ValueError(f"unexpected shard kind: {manifest.get('kind')}")
+    if manifest.get("catalog_id") != catalog_id:
+        raise ValueError("added shard catalog ID does not match target")
     return manifest
 
 
