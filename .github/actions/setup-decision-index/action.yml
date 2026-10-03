@@ -9,6 +9,10 @@ inputs:
     description: Checkout path relative to the workspace.
     required: false
     default: .deps/decision-index
+  rebuild:
+    description: Install Decision Index rebuild dependencies.
+    required: false
+    default: 'false'
 
 outputs:
   executable:
@@ -30,9 +34,14 @@ runs:
       shell: bash
       env:
         SOURCE_PATH: ${{ inputs.path }}
+        INSTALL_REBUILD: ${{ inputs.rebuild }}
       run: |
         python3 -m venv "$GITHUB_WORKSPACE/.deps/decision-index-venv"
-        "$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" -m pip install --disable-pip-version-check "$SOURCE_PATH"
+        target="$SOURCE_PATH"
+        if [[ "$INSTALL_REBUILD" == "true" ]]; then
+          target="$SOURCE_PATH[rebuild]"
+        fi
+        "$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" -m pip install --disable-pip-version-check "$target"
 
     - name: Publish executable
       id: paths
