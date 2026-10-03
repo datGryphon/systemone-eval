@@ -1,0 +1,135 @@
+name: systemone smoke
+
+on:
+  push:
+    branches:
+      - feat/bootstrap-systemone-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LLAMA_CPP_REF: 1537a0a8b2f8711d840878b0a0677ab2213c882c
+  MODEL_REPO: ggml-org/Julia-1-GGUF
+  MODEL_QUANT: Q8_0
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record runner
+        run: |
+          mkdir -p artifacts
+          {
+            uname -a
+            echo
+            lscpu
+            echo
+            free -h
+            echo
+            df -h /
+          } | tee artifacts/runner.txt
+
+      - name: Build pinned llama.cpp
+        run: |
+          git clone --filter=blob:none https://github.com/ggml-org/llama.cpp.git
+          git -C llama.cpp checkout "$LLAMA_CPP_REF"
+          cmake -S llama.cpp -B llama.cpp/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build llama.cpp/build --config Release --target llama-server -j"$(nproc)"
+          llama.cpp/build/bin/llama-server --version | tee artifacts/llama-version.txt
+
+      - name: Start Julia-1
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+        run: |
+          set -euo pipefail
+
+          llama.cpp/build/bin/llama-server             -hf "${MODEL_REPO}:${MODEL_QUANT}"             --host 127.0.0.1             --port 8080             >artifacts/llama-server.log 2>&1 &
+
+          echo $! > artifacts/llama-server.pid
+          pid="$(cat artifacts/llama-server.pid)"
+
+          cleanup() {
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 180); do
+            if curl --fail --silent http://127.0.0.1:8080/health >/dev/null; then
+              break
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              cat artifacts/llama-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent http://127.0.0.1:8080/health | tee artifacts/health.json
+
+          awk '/VmRSS|VmHWM/ { print }' "/proc/$pid/status" | tee artifacts/memory-loaded.txt
+
+          start_ns="$(date +%s%N)"
+          curl --fail --silent             http://127.0.0.1:8080/v1/systemone             -H 'Content-Type: application/json'             -d '{
+              "state": "Customer message: I was charged twice for my order last week and nobody has replied.",
+              "questions": {
+                "route": {
+                  "type": "choice",
+                  "instructions": "Which team should handle this?",
+                  "criteria": {
+                    "billing": null,
+                    "shipping": null,
+                    "technical": null
+                  }
+                },
+                "angry": {
+                  "type": "noul",
+                  "instructions": "Is the customer angry?"
+                },
+                "urgency": {
+                  "type": "score",
+                  "instructions": "How urgent is this?",
+                  "criteria": ["can wait", "this week", "today", "right now"]
+                }
+              }
+            }'             | tee artifacts/response.json
+          end_ns="$(date +%s%N)"
+
+          awk '/VmRSS|VmHWM/ { print }' "/proc/$pid/status" | tee artifacts/memory-after-request.txt
+
+          loaded_rss_kib="$(awk '/VmRSS/ {print $2}' artifacts/memory-loaded.txt)"
+          peak_rss_kib="$(awk '/VmHWM/ {print $2}' artifacts/memory-after-request.txt)"
+          request_ms="$(( (end_ns - start_ns) / 1000000 ))"
+
+          jq -n             --arg llama_cpp_ref "$LLAMA_CPP_REF"             --arg model_repo "$MODEL_REPO"             --arg model_quant "$MODEL_QUANT"             --argjson loaded_rss_kib "$loaded_rss_kib"             --argjson peak_rss_kib "$peak_rss_kib"             --argjson request_ms "$request_ms"             '{
+              llama_cpp_ref: $llama_cpp_ref,
+              model: {
+                repo: $model_repo,
+                quant: $model_quant
+              },
+              memory: {
+                loaded_idle_rss_kib: $loaded_rss_kib,
+                process_peak_rss_kib: $peak_rss_kib
+              },
+              smoke_request_wall_ms: $request_ms
+            }' | tee artifacts/metrics.json
+
+          jq -e '
+            (.answers.route.probabilities | length) == 3 and
+            (.answers.angry.noul | type) == "number" and
+            (.answers.urgency.probabilities | length) == 4 and
+            .usage.output_tokens == 0
+          ' artifacts/response.json >/dev/null
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: systemone-smoke
+          path: artifacts/
