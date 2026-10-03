@@ -19,9 +19,22 @@ def main() -> int:
     }
 
     if args.github_output:
+        base_matrix = {
+            "include": [
+                {
+                    "key": group["key"],
+                    "builder": group["builder"],
+                    "catalog_ids_json": json.dumps(
+                        group["catalog_ids"],
+                        separators=(",", ":"),
+                    ),
+                }
+                for group in payload["base"]
+            ]
+        }
         with args.github_output.open("a") as output:
             print(
-                f"base={json.dumps({'include': payload['base']}, separators=(',', ':'))}",
+                f"base={json.dumps(base_matrix, separators=(',', ':'))}",
                 file=output,
             )
             print(
