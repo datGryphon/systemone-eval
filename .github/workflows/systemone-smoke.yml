@@ -88,37 +88,14 @@ jobs:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Validate suite orchestration imports
-        env:
-          PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
-          PYTHONPATH: ${{ github.workspace }}/scripts
-        run: >-
-          "$PYTHON_PATH" -c "import artifact_layout, assemble_suite, base_groups, hf_suite_preflight, publish_hf, suite_plan"
-
-      - name: Record suite builder plan
-        env:
-          PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
-        run: >-
-          "$PYTHON_PATH" scripts/suite_plan.py --out artifacts/suite-plan.json
-
-      - name: Build shared NLI normalized shard
+      - name: Exercise shared base builder
         uses: ./.github/actions/build-decision-index-base-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
         with:
-          python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
-          catalog-ids: '[11,42]'
-
-      - name: Upload shard artifact
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: decision-index-base-shard-011-042
-          path: |
-            artifacts/base-shard/manifest.json
-            artifacts/base-shard/rebuild.log
-            artifacts/suite-plan.json
+          catalog-ids: '11 42'
+          work-dir: work/base-011-042
 
   added-shard:
     name: Decision Index shard / When2Call
@@ -141,19 +118,12 @@ jobs:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Build When2Call added shard
+      - name: Exercise added benchmark builder
         uses: ./.github/actions/build-decision-index-added-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
         with:
           decision-index: ${{ steps.decision-index.outputs.executable }}
+          edition: ${{ steps.stack.outputs.decision-index-edition }}
           catalog-id: '62'
-
-      - name: Upload shard artifact
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: decision-index-added-shard-62
-          path: |
-            artifacts/added-shard/manifest.json
-            artifacts/added-shard/rebuild.log
+          work-dir: work/added-062
