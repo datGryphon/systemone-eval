@@ -2,6 +2,8 @@
 import argparse
 import json
 import os
+import platform
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -10,6 +12,33 @@ from systemone_runtime import SystemOneServer, load_profile
 
 def read_results(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+def runner_info() -> dict:
+    cpu = next(
+        (
+            line.split(":", 1)[1].strip()
+            for line in Path("/proc/cpuinfo").read_text().splitlines()
+            if line.startswith("model name")
+        ),
+        None,
+    )
+    mem_total_kib = next(
+        (
+            int(line.split()[1])
+            for line in Path("/proc/meminfo").read_text().splitlines()
+            if line.startswith("MemTotal:")
+        ),
+        None,
+    )
+    disk = shutil.disk_usage("/")
+    return {
+        "platform": platform.platform(),
+        "cpu_model": cpu,
+        "logical_cpus": os.cpu_count(),
+        "memory_total_kib": mem_total_kib,
+        "root_disk_bytes": disk.total,
+    }
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -58,14 +87,13 @@ def main() -> int:
                 "stack": stack,
                 "model_profile": args.profile,
                 "model": profile,
+                "runner": runner_info(),
                 "decision_index": {
                     "rows": len(results),
-                    "statuses": {"ok": len(results)},
                     "evaluation_wall_ms": evaluation_wall_ms,
                 },
                 "memory": {
                     "loaded_idle_rss_kib": server.loaded_memory.get("VmRSS"),
-                    "post_evaluation_rss_kib": memory.get("VmRSS"),
                     "process_peak_rss_kib": memory.get("VmHWM"),
                 },
             }
