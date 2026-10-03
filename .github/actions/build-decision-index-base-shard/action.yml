@@ -31,4 +31,5 @@ runs:
         CATALOG_IDS: ${{ inputs.catalog-ids }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
         WORK_DIR: ${{ inputs.work-dir }}
-      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/build_base_shard.py" --decision-index "$DECISION_INDEX" --catalog-ids-json "$CATALOG_IDS" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
+      run: >-
+        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/build_base_shard.py" --decision-index "$DECISION_INDEX" --catalog-ids-json "$CATALOG_IDS" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
