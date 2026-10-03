@@ -57,15 +57,14 @@ jobs:
         run: "$PYTHON_PATH" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
 
   base:
-    name: Base shard / ${{ matrix.group.key }}
+    name: Base shard / ${{ matrix.key }}
     needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 6
-      matrix:
-        group: ${{ fromJSON(needs.plan.outputs.base) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.base) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,9 +89,9 @@ jobs:
         with:
           python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
-          catalog-ids: ${{ toJSON(matrix.group.catalog_ids) }}
-          output-dir: artifacts/base-${{ matrix.group.key }}
-          work-dir: work/base-${{ matrix.group.key }}
+          catalog-ids: ${{ toJSON(matrix.catalog_ids) }}
+          output-dir: artifacts/base-${{ matrix.key }}
+          work-dir: work/base-${{ matrix.key }}
 
       - name: Publish private shard
         uses: ./.github/actions/publish-decision-index-artifact
@@ -102,9 +101,9 @@ jobs:
           python-path: ${{ steps.decision-index.outputs.python-path }}
           repo: ${{ vars.HF_SUITE_REPO }}
           kind: base
-          group-key: ${{ matrix.group.key }}
-          catalog-ids: ${{ toJSON(matrix.group.catalog_ids) }}
-          source: artifacts/base-${{ matrix.group.key }}
+          group-key: ${{ matrix.key }}
+          catalog-ids: ${{ toJSON(matrix.catalog_ids) }}
+          source: artifacts/base-${{ matrix.key }}
 
   added:
     name: Added shard / ${{ matrix.catalog-id }}
