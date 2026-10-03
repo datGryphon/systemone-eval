@@ -97,34 +97,6 @@ jobs:
           catalog-ids: '11 42'
           work-dir: work/base-011-042
 
-      - name: Publish base shard through hf CLI
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-          HF: ${{ steps.decision-index.outputs.hf-path }}
-          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-        run: >-
-          "$HF" upload "$HF_SUITE_REPO"
-          "work/base-011-042/artifacts/benchmark-suite/normalized"
-          "decision-index/$EDITION/$DI_REF/base/011-042/normalized"
-          --repo-type dataset
-          --commit-message "systemone-eval: CI base shard 011-042"
-
-      - name: Read base shard back through hf CLI
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
-          HF: ${{ steps.decision-index.outputs.hf-path }}
-          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-        run: |
-          "$HF" download "$HF_SUITE_REPO" --repo-type dataset \
-            --include "decision-index/$EDITION/$DI_REF/base/011-042/normalized/*.jsonl" \
-            --local-dir /tmp/hf-base-check
-          find /tmp/hf-base-check -name '*.jsonl' -type f -print -quit | grep -q .
 
   added-shard:
     name: Decision Index shard / When2Call
@@ -157,31 +129,3 @@ jobs:
           catalog-id: '62'
           work-dir: work/added-062
 
-      - name: Publish added shard through hf CLI
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-          HF: ${{ steps.decision-index.outputs.hf-path }}
-          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-        run: >-
-          "$HF" upload "$HF_SUITE_REPO"
-          "work/added-062/artifacts/benchmark-suite/release-v2-rebuilt/added-rows.jsonl"
-          "decision-index/$EDITION/$DI_REF/added/062/added-rows.jsonl"
-          --repo-type dataset
-          --commit-message "systemone-eval: CI added shard 062"
-
-      - name: Read added shard back through hf CLI
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
-          HF: ${{ steps.decision-index.outputs.hf-path }}
-          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-        run: >-
-          "$HF" download "$HF_SUITE_REPO"
-          "decision-index/$EDITION/$DI_REF/added/062/added-rows.jsonl"
-          --repo-type dataset
-          --local-dir /tmp/hf-added-check
