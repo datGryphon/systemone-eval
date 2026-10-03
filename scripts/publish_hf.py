@@ -2,9 +2,11 @@
 import argparse
 import json
 import os
+import time
 from pathlib import Path
 
 from huggingface_hub import HfApi
+from huggingface_hub.errors import HfHubHTTPError
 
 from artifact_layout import artifact_prefix, validate_shard, validate_suite
 from stack_config import load_stack
@@ -26,22 +28,34 @@ def main() -> int:
 
     stack = load_stack(args.stack)
     if args.kind == "suite":
-        validate_suite(args.source)
+        validate_suite(args.source, stack)
     else:
         if args.catalog_id is None:
             raise ValueError(f"{args.kind} artifacts require a catalog ID")
         validate_shard(args.source, stack, args.kind, args.catalog_id)
     prefix = artifact_prefix(stack, args.kind, args.catalog_id)
 
-    api = HfApi()
-    info = api.upload_folder(
-        repo_id=args.repo,
-        repo_type="dataset",
-        folder_path=str(args.source),
-        path_in_repo=prefix,
-        ignore_patterns=["rebuild.log", "published.json"],
-        commit_message=f"systemone-eval: publish {args.kind} {args.catalog_id if args.catalog_id is not None else 'suite'}",
-    )
+    api = HfApi(token=os.environ["HF_TOKEN"])
+    info = None
+    for attempt in range(6):
+        try:
+            info = api.upload_folder(
+                repo_id=args.repo,
+                repo_type="dataset",
+                folder_path=str(args.source),
+                path_in_repo=prefix,
+                ignore_patterns=["rebuild.log", "published.json"],
+                commit_message=f"systemone-eval: publish {args.kind} {args.catalog_id if args.catalog_id is not None else 'suite'}",
+            )
+            break
+        except HfHubHTTPError as exc:
+            status = getattr(exc.response, "status_code", None)
+            if status not in {409, 412} or attempt == 5:
+                raise
+            delay = 2 ** attempt
+            print(f"Hub commit raced another shard upload; retrying in {delay}s")
+            time.sleep(delay)
+    assert info is not None
     published = {
         "repo": args.repo,
         "path": prefix,
