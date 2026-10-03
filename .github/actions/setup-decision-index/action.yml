@@ -1,28 +1,20 @@
 name: Set up Decision Index
-description: Check out and install a pinned Decision Index CLI.
+description: Install Decision Index at the pinned ref.
 
 inputs:
   ref:
-    description: Exact Decision Index commit or tag.
     required: true
-  path:
-    description: Checkout path relative to the workspace.
-    required: false
-    default: .deps/decision-index
   rebuild:
-    description: Install Decision Index rebuild dependencies.
+    description: Install source-rebuild dependencies.
     required: false
     default: 'false'
 
 outputs:
   executable:
-    description: Absolute path to the Decision Index CLI.
     value: ${{ steps.paths.outputs.executable }}
   python-path:
-    description: Absolute path to the Decision Index environment Python.
     value: ${{ steps.paths.outputs.python-path }}
   hf-path:
-    description: Absolute path to the hf CLI installed with huggingface_hub.
     value: ${{ steps.paths.outputs.hf-path }}
 
 runs:
@@ -33,24 +25,20 @@ runs:
       with:
         repository: apolinario/decision-index
         ref: ${{ inputs.ref }}
-        path: ${{ inputs.path }}
+        path: .deps/decision-index
         persist-credentials: false
 
-    - name: Create environment
+    - name: Install
       shell: bash
       env:
-        SOURCE_PATH: ${{ inputs.path }}
-        INSTALL_REBUILD: ${{ inputs.rebuild }}
+        REBUILD: ${{ inputs.rebuild }}
       run: |
-        python3 -m venv "$GITHUB_WORKSPACE/.deps/decision-index-venv"
-        target="$SOURCE_PATH"
-        if [[ "$INSTALL_REBUILD" == "true" ]]; then
-          target="$SOURCE_PATH[rebuild]"
-        fi
-        "$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" -m pip install --disable-pip-version-check --editable "$target"
+        python3 -m venv .deps/decision-index-venv
+        target=".deps/decision-index"
+        [[ "$REBUILD" == "true" ]] && target="$target[rebuild]"
+        .deps/decision-index-venv/bin/pip install --disable-pip-version-check --editable "$target"
 
-    - name: Publish tool paths
-      id: paths
+    - id: paths
       shell: bash
       run: |
         echo "executable=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/decision-index" >> "$GITHUB_OUTPUT"
