@@ -103,6 +103,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
         with:
+          python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
           catalog-ids: '[11,42]'
 
