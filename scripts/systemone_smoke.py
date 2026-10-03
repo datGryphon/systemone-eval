@@ -4,7 +4,6 @@ import json
 import time
 from pathlib import Path
 
-from stack_config import load_stack
 from systemone_runtime import SystemOneServer, load_profile, request_json
 
 SMOKE_PAYLOAD = {
@@ -50,7 +49,7 @@ def main() -> int:
     args = parser.parse_args()
 
     profile = load_profile(args.models, args.profile)
-    stack = load_stack(args.stack)
+    stack = json.loads(args.stack.read_text())
     try:
         with SystemOneServer(args.server, profile, args.output) as server:
             started_ns = time.perf_counter_ns()
