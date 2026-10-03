@@ -33,5 +33,6 @@ runs:
           --server "$SERVER_PATH" \
           --models "$GITHUB_WORKSPACE/models.json" \
           --profile "$MODEL_PROFILE" \
+          --stack "$GITHUB_WORKSPACE/stack.json" \
           --output "$OUTPUT_DIR"
         echo "metrics-path=$OUTPUT_DIR/metrics.json" >> "$GITHUB_OUTPUT"
