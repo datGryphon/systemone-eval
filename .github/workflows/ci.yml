@@ -41,7 +41,8 @@ jobs:
       - name: Validate suite plan
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
-        run: "$PYTHON" scripts/suite_plan.py >/dev/null
+        run: >-
+          "$PYTHON" scripts/suite_plan.py >/dev/null
 
       - name: Run Decision Index HTTP smoke
         env:
