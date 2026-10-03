@@ -11,19 +11,20 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  LLAMA_CPP_REF: 1537a0a8b2f8711d840878b0a0677ab2213c882c
-
 jobs:
-  systemone-smoke:
+  integration:
     name: System One / Julia-1 Q8
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Read pinned stack
+        id: stack
+        uses: ./.github/actions/read-stack
 
       - name: Record runner profile
         run: python3 scripts/runner_info.py artifacts/runner.json
@@ -32,19 +33,35 @@ jobs:
         id: llama
         uses: ./.github/actions/setup-llama
         with:
-          ref: ${{ env.LLAMA_CPP_REF }}
+          ref: ${{ steps.stack.outputs.llama-cpp-ref }}
 
-      - name: Run Julia-1 smoke
+      - name: Set up Decision Index
+        id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+
+      - name: Run native System One smoke
         uses: ./.github/actions/run-systemone-smoke
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
         with:
           server-path: ${{ steps.llama.outputs.server-path }}
           model-profile: julia-1-q8
+          output-dir: artifacts/native-smoke
 
-      - name: Upload smoke artifacts
+      - name: Run Decision Index HTTP smoke
+        uses: ./.github/actions/run-decision-index-smoke
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+        with:
+          server-path: ${{ steps.llama.outputs.server-path }}
+          decision-index: ${{ steps.decision-index.outputs.executable }}
+          model-profile: julia-1-q8
+
+      - name: Upload integration artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: systemone-smoke
+          name: systemone-integration
           path: artifacts/
