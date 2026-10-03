@@ -48,13 +48,17 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
           PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
-        run: "$PYTHON_PATH" scripts/hf_suite_preflight.py --repo "$HF_SUITE_REPO"
+        run: |
+
+          "$PYTHON_PATH" scripts/hf_suite_preflight.py --repo "$HF_SUITE_REPO"
 
       - name: Derive catalog matrix from pinned Decision Index
         id: matrix
         env:
           PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
-        run: "$PYTHON_PATH" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
+        run: |
+
+          "$PYTHON_PATH" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
 
   base:
     name: Base shard / ${{ matrix.catalog-id }}
