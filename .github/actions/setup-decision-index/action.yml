@@ -1,0 +1,40 @@
+name: Set up Decision Index
+description: Check out and install a pinned Decision Index CLI.
+
+inputs:
+  ref:
+    description: Exact Decision Index commit or tag.
+    required: true
+  path:
+    description: Checkout path relative to the workspace.
+    required: false
+    default: .deps/decision-index
+
+outputs:
+  executable:
+    description: Absolute path to the Decision Index CLI.
+    value: ${{ steps.paths.outputs.executable }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check out Decision Index
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: apolinario/decision-index
+        ref: ${{ inputs.ref }}
+        path: ${{ inputs.path }}
+        persist-credentials: false
+
+    - name: Create environment
+      shell: bash
+      env:
+        SOURCE_PATH: ${{ inputs.path }}
+      run: |
+        python3 -m venv "$GITHUB_WORKSPACE/.deps/decision-index-venv"
+        "$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" -m pip install --disable-pip-version-check "$SOURCE_PATH"
+
+    - name: Publish executable
+      id: paths
+      shell: bash
+      run: echo "executable=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/decision-index" >> "$GITHUB_OUTPUT"
