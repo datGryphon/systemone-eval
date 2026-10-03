@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Decision Index / Julia-1 Q8
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read pinned stack
+        id: stack
+        uses: ./.github/actions/read-stack
+
+      - name: Record runner
+        run: python3 scripts/runner_info.py artifacts/runner.json
+
+      - name: Set up llama.cpp
+        id: llama
+        uses: ./.github/actions/setup-llama
+        with:
+          ref: ${{ steps.stack.outputs.llama-cpp-ref }}
+
+      - name: Set up Decision Index
+        id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+
+      - name: Validate suite plan
+        env:
+          PYTHON: ${{ steps.decision-index.outputs.python-path }}
+        run: "$PYTHON" scripts/suite_plan.py >/dev/null
+
+      - name: Run Decision Index HTTP smoke
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+          SERVER: ${{ steps.llama.outputs.server-path }}
+          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
+        run: >-
+          python3 scripts/decision_index_smoke.py
+          --server "$SERVER"
+          --decision-index "$DECISION_INDEX"
+          --rows tests/data/systemone-integration.jsonl
+          --models models.json
+          --profile julia-1-q8
+          --stack stack.json
+          --output artifacts/decision-index-smoke
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: systemone-integration
+          path: artifacts/
