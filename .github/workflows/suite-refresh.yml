@@ -88,6 +88,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
         with:
+          python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
           catalog-ids: ${{ toJSON(matrix.group.catalog_ids) }}
           output-dir: artifacts/base-${{ matrix.group.key }}
