@@ -46,7 +46,6 @@ jobs:
 
       - name: Run Decision Index HTTP smoke
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           SERVER: ${{ steps.llama.outputs.server-path }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
         run: >-
