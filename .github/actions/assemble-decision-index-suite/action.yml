@@ -31,4 +31,6 @@ runs:
         HF_REPO: ${{ inputs.repo }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
         WORK_DIR: ${{ inputs.work-dir }}
-      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/assemble_suite.py" --repo "$HF_REPO" --decision-index "$DECISION_INDEX" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
+      run: |
+
+        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/assemble_suite.py" --repo "$HF_REPO" --decision-index "$DECISION_INDEX" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
