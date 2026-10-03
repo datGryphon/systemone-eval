@@ -100,7 +100,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: decision-index-base-shard-4
-          path: artifacts/base-shard/
+          path: |
+            artifacts/base-shard/manifest.json
+            artifacts/base-shard/rebuild.log
 
   added-shard:
     name: Decision Index shard / When2Call
@@ -136,4 +138,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: decision-index-added-shard-62
-          path: artifacts/added-shard/
+          path: |
+            artifacts/added-shard/manifest.json
+            artifacts/added-shard/rebuild.log
