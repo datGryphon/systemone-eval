@@ -99,7 +99,7 @@ jobs:
         env:
           PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
         run: >-
-          "$PYTHON_PATH" scripts/suite_plan.py > artifacts/suite-plan.json
+          "$PYTHON_PATH" scripts/suite_plan.py --out artifacts/suite-plan.json
 
       - name: Build shared NLI normalized shard
         uses: ./.github/actions/build-decision-index-base-shard
