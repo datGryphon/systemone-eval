@@ -101,3 +101,39 @@ jobs:
         with:
           name: decision-index-base-shard-4
           path: artifacts/base-shard/
+
+  added-shard:
+    name: Decision Index shard / When2Call
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read pinned stack
+        id: stack
+        uses: ./.github/actions/read-stack
+
+      - name: Set up Decision Index rebuild environment
+        id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Build When2Call added shard
+        uses: ./.github/actions/build-decision-index-added-shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+        with:
+          decision-index: ${{ steps.decision-index.outputs.executable }}
+          catalog-id: '62'
+
+      - name: Upload shard artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: decision-index-added-shard-62
+          path: artifacts/added-shard/
