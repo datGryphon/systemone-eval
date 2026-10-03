@@ -1,5 +1,5 @@
 name: Read evaluation stack
-description: Validate stack.json and publish pinned dependency versions.
+description: Publish pinned dependency versions from stack.json.
 
 inputs:
   path:
@@ -26,4 +26,7 @@ runs:
       shell: bash
       env:
         STACK_PATH: ${{ inputs.path }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/stack_config.py" "$STACK_PATH" --github-output "$GITHUB_OUTPUT"
+      run: |
+        echo "llama-cpp-ref=$(jq -er '.llama_cpp.ref' "$STACK_PATH")" >> "$GITHUB_OUTPUT"
+        echo "decision-index-ref=$(jq -er '.decision_index.ref' "$STACK_PATH")" >> "$GITHUB_OUTPUT"
+        echo "decision-index-edition=$(jq -er '.decision_index.edition' "$STACK_PATH")" >> "$GITHUB_OUTPUT"
