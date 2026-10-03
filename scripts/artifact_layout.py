@@ -34,8 +34,8 @@ def validate_shard(source: Path, stack: dict, kind: str, catalog_id: int) -> dic
     if not manifest_path.exists():
         raise ValueError(f"missing shard manifest: {manifest_path}")
     manifest = json.loads(manifest_path.read_text())
-    if manifest.get("stack") != stack:
-        raise ValueError("shard stack does not match current stack.json")
+    if manifest.get("decision_index") != stack["decision_index"]:
+        raise ValueError("shard Decision Index provenance does not match stack.json")
     if manifest.get("catalog_id") != catalog_id:
         raise ValueError("shard catalog ID does not match target")
     expected_kind = {
