@@ -5,17 +5,34 @@ This repo connects [Decision Index](https://github.com/apolinario/decision-index
 Hugging Face dataset. The glue here is intentionally small.
 
 ```mermaid
-flowchart LR
-    DI[Decision Index sources] -->|suite rebuild| SHARDS[GitHub shard jobs]
-    SHARDS -->|hf upload| HF[(private HF dataset)]
-    HF -->|hf download| ASSEMBLE[assemble job]
-    ASSEMBLE -->|DI import + verify| SUITE[Frozen suite]
+flowchart TD
+    subgraph REFRESH["Suite refresh"]
+        DI[Decision Index sources]
+        SHARDS[GitHub shard jobs]
+        HF[(private HF dataset)]
+        ASSEMBLE[assemble job]
+        SUITE[Frozen suite]
 
-    SUITE --> EVAL[Decision Index HTTP engine]
-    MODEL[GGUF + pinned llama.cpp] --> SERVER[llama-server /v1/systemone]
-    EVAL --> SERVER
-    EVAL --> RESULTS[quality + latency]
-    SERVER --> RAM[loaded + peak RSS]
+        DI -->|suite rebuild| SHARDS
+        SHARDS -->|hf upload| HF
+        HF -->|hf download| ASSEMBLE
+        ASSEMBLE -->|DI import + verify| SUITE
+    end
+
+    subgraph EVALUATION["Evaluation"]
+        MODEL[GGUF + pinned llama.cpp]
+        SERVER[llama-server /v1/systemone]
+        EVAL[Decision Index HTTP engine]
+        RESULTS[quality + latency]
+        RAM[loaded + peak RSS]
+
+        MODEL --> SERVER
+        EVAL --> SERVER
+        EVAL --> RESULTS
+        SERVER --> RAM
+    end
+
+    SUITE --> EVAL
 ```
 
 ## Design choices
