@@ -21,6 +21,9 @@ outputs:
   python-path:
     description: Absolute path to the Decision Index environment Python.
     value: ${{ steps.paths.outputs.python-path }}
+  hf-path:
+    description: Absolute path to the hf CLI installed with huggingface_hub.
+    value: ${{ steps.paths.outputs.hf-path }}
 
 runs:
   using: composite
@@ -46,9 +49,10 @@ runs:
         fi
         "$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" -m pip install --disable-pip-version-check --editable "$target"
 
-    - name: Publish executable
+    - name: Publish tool paths
       id: paths
       shell: bash
       run: |
         echo "executable=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/decision-index" >> "$GITHUB_OUTPUT"
         echo "python-path=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" >> "$GITHUB_OUTPUT"
+        echo "hf-path=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/hf" >> "$GITHUB_OUTPUT"
