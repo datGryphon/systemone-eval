@@ -47,13 +47,18 @@ def validate_shard(source: Path, stack: dict, kind: str, catalog_id: int) -> dic
     return manifest
 
 
-def validate_suite(source: Path) -> None:
+def validate_suite(source: Path, stack: dict) -> dict:
     required = {
         "selected-rows.jsonl.gz",
         "added-rows.jsonl.gz",
         "excluded-questions.json",
         "manifest.json",
+        "systemone-manifest.json",
     }
     missing = sorted(name for name in required if not (source / name).exists())
     if missing:
         raise ValueError(f"suite artifact missing files: {missing}")
+    manifest = json.loads((source / "systemone-manifest.json").read_text())
+    if manifest.get("decision_index") != stack["decision_index"]:
+        raise ValueError("frozen suite Decision Index provenance does not match stack.json")
+    return manifest
