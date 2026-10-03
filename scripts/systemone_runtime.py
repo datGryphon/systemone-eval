@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import json
-import os
 import subprocess
 import time
 import urllib.error
@@ -58,7 +57,6 @@ class SystemOneServer:
             command,
             stdout=self._log_handle,
             stderr=subprocess.STDOUT,
-            env=os.environ.copy(),
             text=True,
         )
         deadline = time.monotonic() + self.startup_timeout
