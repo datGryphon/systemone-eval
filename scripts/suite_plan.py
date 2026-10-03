@@ -1,51 +1,59 @@
 #!/usr/bin/env python3
 import argparse
 import json
+from collections import defaultdict
 from pathlib import Path
 
 from decision_index.suite.build.adapters_added import ORDER
+from decision_index.suite.build.rebuild import BUILDERS
 
-from base_groups import base_builder_groups
+
+def base_groups() -> list[dict]:
+    grouped: dict[tuple[str, str], list[int]] = defaultdict(list)
+    builders = {}
+
+    for catalog_id, builder in BUILDERS.items():
+        identity = (builder.__module__, builder.__qualname__)
+        grouped[identity].append(int(catalog_id))
+        builders[identity] = builder
+
+    groups = []
+    for identity, catalog_ids in grouped.items():
+        ids = sorted(catalog_ids)
+        builder = builders[identity]
+        groups.append(
+            {
+                "key": "-".join(f"{catalog_id:03d}" for catalog_id in ids),
+                "builder": f"{builder.__module__.rsplit('.', 1)[-1]}.{builder.__name__}",
+                "catalog_ids": " ".join(str(catalog_id) for catalog_id in ids),
+            }
+        )
+    return sorted(groups, key=lambda group: [int(x) for x in group["catalog_ids"].split()])
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--github-output", type=Path)
-    parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
-    payload = {
-        "base": base_builder_groups(),
-        "added": [int(catalog_id) for catalog_id in ORDER],
-    }
-
-    if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(json.dumps(payload, indent=2) + "\n")
+    base = base_groups()
+    added = [
+        {"key": f"{int(catalog_id):03d}", "catalog_id": int(catalog_id)}
+        for catalog_id in ORDER
+    ]
+    payload = {"base": base, "added": added}
 
     if args.github_output:
-        base_matrix = {
-            "include": [
-                {
-                    "key": group["key"],
-                    "builder": group["builder"],
-                    "catalog_ids_json": json.dumps(
-                        group["catalog_ids"],
-                        separators=(",", ":"),
-                    ),
-                }
-                for group in payload["base"]
-            ]
-        }
         with args.github_output.open("a") as output:
             print(
-                f"base={json.dumps(base_matrix, separators=(',', ':'))}",
+                f"base={json.dumps({'include': base}, separators=(',', ':'))}",
                 file=output,
             )
             print(
-                f"added={json.dumps(payload['added'], separators=(',', ':'))}",
+                f"added={json.dumps({'include': added}, separators=(',', ':'))}",
                 file=output,
             )
+
     print(json.dumps(payload, indent=2))
     return 0
 
