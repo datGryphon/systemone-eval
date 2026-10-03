@@ -1,0 +1,190 @@
+name: Refresh Decision Index suite
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: decision-index-suite-refresh
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan pinned suite
+    runs-on: ubuntu-24.04
+    outputs:
+      base: ${{ steps.matrix.outputs.base }}
+      added: ${{ steps.matrix.outputs.added }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate private HF destination
+        env:
+          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
+        run: |
+          if [[ -z "$HF_SUITE_REPO" ]]; then
+            echo "::error::Set repository variable HF_SUITE_REPO to the private Hugging Face dataset repo ID."
+            exit 1
+          fi
+
+      - name: Read pinned stack
+        id: stack
+        uses: ./.github/actions/read-stack
+
+      - name: Set up Decision Index
+        id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Derive catalog matrix from pinned Decision Index
+        id: matrix
+        env:
+          PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
+        run: "$PYTHON_PATH" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
+
+  base:
+    name: Base shard / ${{ matrix.catalog-id }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        catalog-id: ${{ fromJSON(needs.plan.outputs.base) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read pinned stack
+        id: stack
+        uses: ./.github/actions/read-stack
+
+      - name: Set up Decision Index rebuild environment
+        id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Build normalized shard
+        uses: ./.github/actions/build-decision-index-base-shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+        with:
+          decision-index: ${{ steps.decision-index.outputs.executable }}
+          catalog-id: ${{ matrix.catalog-id }}
+          output-dir: artifacts/base-${{ matrix.catalog-id }}
+          work-dir: work/base-${{ matrix.catalog-id }}
+
+      - name: Publish private shard
+        uses: ./.github/actions/publish-decision-index-artifact
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+        with:
+          python-path: ${{ steps.decision-index.outputs.python-path }}
+          repo: ${{ vars.HF_SUITE_REPO }}
+          kind: base
+          catalog-id: ${{ matrix.catalog-id }}
+          source: artifacts/base-${{ matrix.catalog-id }}
+
+  added:
+    name: Added shard / ${{ matrix.catalog-id }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        catalog-id: ${{ fromJSON(needs.plan.outputs.added) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read pinned stack
+        id: stack
+        uses: ./.github/actions/read-stack
+
+      - name: Set up Decision Index rebuild environment
+        id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Build added row shard
+        uses: ./.github/actions/build-decision-index-added-shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+        with:
+          decision-index: ${{ steps.decision-index.outputs.executable }}
+          catalog-id: ${{ matrix.catalog-id }}
+          output-dir: artifacts/added-${{ matrix.catalog-id }}
+          work-dir: work/added-${{ matrix.catalog-id }}
+
+      - name: Publish private shard
+        uses: ./.github/actions/publish-decision-index-artifact
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+        with:
+          python-path: ${{ steps.decision-index.outputs.python-path }}
+          repo: ${{ vars.HF_SUITE_REPO }}
+          kind: added
+          catalog-id: ${{ matrix.catalog-id }}
+          source: artifacts/added-${{ matrix.catalog-id }}
+
+  assemble:
+    name: Assemble canonical suite
+    needs:
+      - plan
+      - base
+      - added
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read pinned stack
+        id: stack
+        uses: ./.github/actions/read-stack
+
+      - name: Set up Decision Index rebuild environment
+        id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Assemble and verify upstream hashes
+        uses: ./.github/actions/assemble-decision-index-suite
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+        with:
+          python-path: ${{ steps.decision-index.outputs.python-path }}
+          decision-index: ${{ steps.decision-index.outputs.executable }}
+          repo: ${{ vars.HF_SUITE_REPO }}
+
+      - name: Publish frozen suite
+        uses: ./.github/actions/publish-decision-index-artifact
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+        with:
+          python-path: ${{ steps.decision-index.outputs.python-path }}
+          repo: ${{ vars.HF_SUITE_REPO }}
+          kind: suite
+          source: artifacts/frozen-suite
