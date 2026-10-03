@@ -21,7 +21,7 @@ def main() -> int:
     if args.github_output:
         with args.github_output.open("a") as output:
             print(
-                f"base={json.dumps(payload['base'], separators=(',', ':'))}",
+                f"base={json.dumps({'include': payload['base']}, separators=(',', ':'))}",
                 file=output,
             )
             print(
