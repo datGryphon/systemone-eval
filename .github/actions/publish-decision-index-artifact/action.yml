@@ -12,7 +12,15 @@ inputs:
     description: Artifact kind (base, added, or suite).
     required: true
   catalog-id:
-    description: Catalog ID for base/added shards.
+    description: Catalog ID for added shards.
+    required: false
+    default: ''
+  group-key:
+    description: Builder group key for base shards.
+    required: false
+    default: ''
+  catalog-ids:
+    description: JSON catalog ID array for base shards.
     required: false
     default: ''
   source:
@@ -22,18 +30,26 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Publish catalog shard
-      if: inputs.kind != 'suite'
+    - name: Publish base shard
+      if: inputs.kind == 'base'
       shell: bash
       env:
         PYTHON_PATH: ${{ inputs.python-path }}
         HF_REPO: ${{ inputs.repo }}
-        ARTIFACT_KIND: ${{ inputs.kind }}
+        GROUP_KEY: ${{ inputs.group-key }}
+        CATALOG_IDS: ${{ inputs.catalog-ids }}
+        SOURCE: ${{ inputs.source }}
+      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind base --group-key "$GROUP_KEY" --catalog-ids-json "$CATALOG_IDS" --source "$SOURCE"
+
+    - name: Publish added shard
+      if: inputs.kind == 'added'
+      shell: bash
+      env:
+        PYTHON_PATH: ${{ inputs.python-path }}
+        HF_REPO: ${{ inputs.repo }}
         CATALOG_ID: ${{ inputs.catalog-id }}
         SOURCE: ${{ inputs.source }}
-      run: |
-
-        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind "$ARTIFACT_KIND" --catalog-id "$CATALOG_ID" --source "$SOURCE"
+      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind added --catalog-id "$CATALOG_ID" --source "$SOURCE"
 
     - name: Publish frozen suite
       if: inputs.kind == 'suite'
@@ -42,6 +58,4 @@ runs:
         PYTHON_PATH: ${{ inputs.python-path }}
         HF_REPO: ${{ inputs.repo }}
         SOURCE: ${{ inputs.source }}
-      run: |
-
-        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind suite --source "$SOURCE"
+      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind suite --source "$SOURCE"
