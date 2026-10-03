@@ -122,7 +122,7 @@ def main() -> int:
     after = shutil.disk_usage("/")
 
     manifest = {
-        "stack": stack,
+        "decision_index": stack["decision_index"],
         "kind": "decision-index-added-rows-shard",
         "catalog_id": args.catalog_id,
         "build_edition": edition,
