@@ -2,8 +2,6 @@ name: Refresh Decision Index suite
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [ready_for_review]
 
 permissions:
   contents: read
@@ -14,8 +12,7 @@ concurrency:
 
 jobs:
   plan:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/decision-index-integration'
-    name: Plan pinned suite
+    name: Plan suite
     runs-on: ubuntu-24.04
     outputs:
       base: ${{ steps.matrix.outputs.base }}
@@ -27,11 +24,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Require private HF destination
-        env:
-          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-        run: test -n "$HF_SUITE_REPO"
-
       - name: Read pinned stack
         id: stack
         uses: ./.github/actions/read-stack
@@ -42,15 +34,14 @@ jobs:
         with:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
 
-      - name: Derive shard matrix from pinned Decision Index
+      - name: Build shard matrix
         id: matrix
         env:
-          PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
-        run: >-
-          "$PYTHON_PATH" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
+          PYTHON: ${{ steps.decision-index.outputs.python-path }}
+        run: "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
 
   base:
-    name: Base shard / ${{ matrix.key }}
+    name: Base / ${{ matrix.key }}
     needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -68,61 +59,48 @@ jobs:
         id: stack
         uses: ./.github/actions/read-stack
 
-      - name: Set up Decision Index rebuild environment
+      - name: Set up Decision Index
         id: decision-index
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Check for existing base shard
+      - name: Check private cache
         id: shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           HF: ${{ steps.decision-index.outputs.hf-path }}
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-          KEY: ${{ matrix.key }}
+          PREFIX: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/base/${{ matrix.key }}/normalized/
         run: |
-          rm -rf /tmp/hf-shard-check
-          "$HF" download "$HF_SUITE_REPO" --repo-type dataset \
-            --include "decision-index/$EDITION/$DI_REF/base/$KEY/normalized/*.jsonl" \
-            --local-dir /tmp/hf-shard-check || true
-          if find /tmp/hf-shard-check -name '*.jsonl' -type f -print -quit | grep -q .; then
+          if "$HF" datasets ls "$HF_SUITE_REPO" -R | grep -Fq "$PREFIX"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Rebuild base shard
+      - name: Rebuild shard
         if: steps.shard.outputs.exists != 'true'
-        uses: ./.github/actions/build-decision-index-base-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-        with:
-          decision-index: ${{ steps.decision-index.outputs.executable }}
-          catalog-ids: ${{ matrix.catalog_ids }}
-          work-dir: work/base-${{ matrix.key }}
+          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
+          CATALOG_IDS: ${{ matrix.catalog_ids }}
+          WORK: work/base-${{ matrix.key }}
+        run: |
+          read -ra ids <<< "$CATALOG_IDS"
+          "$DECISION_INDEX" suite rebuild --edition 0.1 --work "$WORK" --only "${ids[@]}"
 
-      - name: Publish normalized shard
+      - name: Publish shard
         if: steps.shard.outputs.exists != 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
           HF: ${{ steps.decision-index.outputs.hf-path }}
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-          KEY: ${{ matrix.key }}
-        run: >-
-          "$HF" upload "$HF_SUITE_REPO"
-          "work/base-$KEY/artifacts/benchmark-suite/normalized"
-          "decision-index/$EDITION/$DI_REF/base/$KEY/normalized"
-          --repo-type dataset
-          --commit-message "systemone-eval: publish base shard $KEY"
+          SOURCE: work/base-${{ matrix.key }}/artifacts/benchmark-suite/normalized
+          DEST: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/base/${{ matrix.key }}/normalized
+        run: "$HF" upload "$HF_SUITE_REPO" "$SOURCE" "$DEST" --repo-type dataset
 
   added:
-    name: Added shard / ${{ matrix.key }}
+    name: Added / ${{ matrix.key }}
     needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -140,65 +118,51 @@ jobs:
         id: stack
         uses: ./.github/actions/read-stack
 
-      - name: Set up Decision Index rebuild environment
+      - name: Set up Decision Index
         id: decision-index
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Check for existing added shard
+      - name: Check private cache
         id: shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           HF: ${{ steps.decision-index.outputs.hf-path }}
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-          KEY: ${{ matrix.key }}
+          FILE: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/added/${{ matrix.key }}/added-rows.jsonl
         run: |
-          rm -rf /tmp/hf-shard-check
-          if "$HF" download "$HF_SUITE_REPO" \
-            "decision-index/$EDITION/$DI_REF/added/$KEY/added-rows.jsonl" \
-            --repo-type dataset --local-dir /tmp/hf-shard-check; then
+          if "$HF" datasets ls "$HF_SUITE_REPO" -R | grep -Fq "$FILE"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Rebuild added shard
+      - name: Rebuild shard
         if: steps.shard.outputs.exists != 'true'
-        uses: ./.github/actions/build-decision-index-added-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-        with:
-          decision-index: ${{ steps.decision-index.outputs.executable }}
-          edition: ${{ steps.stack.outputs.decision-index-edition }}
-          catalog-id: ${{ matrix.catalog_id }}
-          work-dir: work/added-${{ matrix.key }}
+          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
+          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
+          WORK: work/added-${{ matrix.key }}
+        run: >-
+          "$DECISION_INDEX" suite rebuild
+          --edition "$EDITION"
+          --work "$WORK"
+          --only "${{ matrix.catalog_id }}"
 
-      - name: Publish added shard
+      - name: Publish shard
         if: steps.shard.outputs.exists != 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
           HF: ${{ steps.decision-index.outputs.hf-path }}
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
-          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
-          KEY: ${{ matrix.key }}
-        run: >-
-          "$HF" upload "$HF_SUITE_REPO"
-          "work/added-$KEY/artifacts/benchmark-suite/release-v2-rebuilt/added-rows.jsonl"
-          "decision-index/$EDITION/$DI_REF/added/$KEY/added-rows.jsonl"
-          --repo-type dataset
-          --commit-message "systemone-eval: publish added shard $KEY"
+          SOURCE: work/added-${{ matrix.key }}/artifacts/benchmark-suite/release-v2-rebuilt/added-rows.jsonl
+          DEST: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/added/${{ matrix.key }}/added-rows.jsonl
+        run: "$HF" upload "$HF_SUITE_REPO" "$SOURCE" "$DEST" --repo-type dataset
 
   assemble:
     name: Assemble canonical suite
-    needs:
-      - plan
-      - base
-      - added
+    needs: [plan, base, added]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -211,21 +175,19 @@ jobs:
         id: stack
         uses: ./.github/actions/read-stack
 
-      - name: Set up Decision Index rebuild environment
+      - name: Set up Decision Index
         id: decision-index
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Assemble, verify, and publish suite
+      - name: Assemble, verify, and publish
         uses: ./.github/actions/assemble-decision-index-suite
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
         with:
-          python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
-          hf: ${{ steps.decision-index.outputs.hf-path }}
           repo: ${{ vars.HF_SUITE_REPO }}
           edition: ${{ steps.stack.outputs.decision-index-edition }}
           ref: ${{ steps.stack.outputs.decision-index-ref }}
