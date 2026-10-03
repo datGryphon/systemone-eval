@@ -1,0 +1,6 @@
+{
+  "julia-1-q8": {
+    "repo": "ggml-org/Julia-1-GGUF",
+    "quant": "Q8_0"
+  }
+}

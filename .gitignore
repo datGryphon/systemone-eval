@@ -1,0 +1,6 @@
+# Local benchmark outputs
+runs/
+artifacts/
+.cache/
+__pycache__/
+*.pyc
