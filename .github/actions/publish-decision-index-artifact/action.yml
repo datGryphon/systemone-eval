@@ -39,7 +39,8 @@ runs:
         GROUP_KEY: ${{ inputs.group-key }}
         CATALOG_IDS: ${{ inputs.catalog-ids }}
         SOURCE: ${{ inputs.source }}
-      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind base --group-key "$GROUP_KEY" --catalog-ids-json "$CATALOG_IDS" --source "$SOURCE"
+      run: >-
+        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind base --group-key "$GROUP_KEY" --catalog-ids-json "$CATALOG_IDS" --source "$SOURCE"
 
     - name: Publish added shard
       if: inputs.kind == 'added'
@@ -49,7 +50,8 @@ runs:
         HF_REPO: ${{ inputs.repo }}
         CATALOG_ID: ${{ inputs.catalog-id }}
         SOURCE: ${{ inputs.source }}
-      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind added --catalog-id "$CATALOG_ID" --source "$SOURCE"
+      run: >-
+        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind added --catalog-id "$CATALOG_ID" --source "$SOURCE"
 
     - name: Publish frozen suite
       if: inputs.kind == 'suite'
@@ -58,4 +60,5 @@ runs:
         PYTHON_PATH: ${{ inputs.python-path }}
         HF_REPO: ${{ inputs.repo }}
         SOURCE: ${{ inputs.source }}
-      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind suite --source "$SOURCE"
+      run: >-
+        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/publish_hf.py" --repo "$HF_REPO" --stack "$GITHUB_WORKSPACE/stack.json" --kind suite --source "$SOURCE"
