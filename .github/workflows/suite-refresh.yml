@@ -75,7 +75,7 @@ jobs:
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
           PREFIX: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/base/${{ matrix.key }}/normalized/
         run: |
-          if "$HF" datasets ls "$HF_SUITE_REPO" -R | grep -Fq "$PREFIX"; then
+          if "$HF" datasets ls "$HF_SUITE_REPO" -R --limit 0 | grep -Fq "$PREFIX"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -135,7 +135,7 @@ jobs:
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
           FILE: decision-index/${{ steps.stack.outputs.decision-index-edition }}/${{ steps.stack.outputs.decision-index-ref }}/added/${{ matrix.key }}/added-rows.jsonl
         run: |
-          if "$HF" datasets ls "$HF_SUITE_REPO" -R | grep -Fq "$FILE"; then
+          if "$HF" datasets ls "$HF_SUITE_REPO" -R --limit 0 | grep -Fq "$FILE"; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           fi
 
