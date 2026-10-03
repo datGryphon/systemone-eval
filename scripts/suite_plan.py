@@ -9,16 +9,18 @@ from decision_index.suite.build.rebuild import BUILDERS
 
 
 # BRIGHT reads ToolRet's retrieval mapping during normalization.
-SOURCE_DEPENDENCIES = {2: "retrieval", 36: "retrieval"}
+RETRIEVAL_GROUP = {2, 36}
 
 
 def base_groups() -> list[dict]:
     groups = defaultdict(list)
 
     for catalog_id, builder in BUILDERS.items():
-        identity = SOURCE_DEPENDENCIES.get(int(catalog_id))
-        if identity is None:
-            identity = (builder.__module__, builder.__qualname__)
+        identity = (
+            "retrieval"
+            if int(catalog_id) in RETRIEVAL_GROUP
+            else (builder.__module__, builder.__qualname__)
+        )
         groups[identity].append(int(catalog_id))
 
     return [
