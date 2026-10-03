@@ -1,0 +1,34 @@
+name: Run Decision Index smoke
+description: Exercise the pinned Decision Index HTTP engine against a local llama-server.
+
+inputs:
+  server-path:
+    description: Path to llama-server.
+    required: true
+  decision-index:
+    description: Path to Decision Index CLI.
+    required: true
+  model-profile:
+    description: Profile key from models.json.
+    required: true
+  rows:
+    description: Decision Index-compatible integration rows.
+    required: false
+    default: tests/data/systemone-integration.jsonl
+  output-dir:
+    description: Artifact output directory.
+    required: false
+    default: artifacts/decision-index-smoke
+
+runs:
+  using: composite
+  steps:
+    - name: Run Decision Index integration
+      shell: bash
+      env:
+        SERVER_PATH: ${{ inputs.server-path }}
+        DECISION_INDEX: ${{ inputs.decision-index }}
+        MODEL_PROFILE: ${{ inputs.model-profile }}
+        ROWS: ${{ inputs.rows }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: python3 "$GITHUB_WORKSPACE/scripts/decision_index_smoke.py" --server "$SERVER_PATH" --decision-index "$DECISION_INDEX" --rows "$ROWS" --models "$GITHUB_WORKSPACE/models.json" --profile "$MODEL_PROFILE" --stack "$GITHUB_WORKSPACE/stack.json" --output "$OUTPUT_DIR"
