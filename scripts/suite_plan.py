@@ -11,12 +11,17 @@ from base_groups import base_builder_groups
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--github-output", type=Path)
+    parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
     payload = {
         "base": base_builder_groups(),
         "added": [int(catalog_id) for catalog_id in ORDER],
     }
+
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(payload, indent=2) + "\n")
 
     if args.github_output:
         base_matrix = {
