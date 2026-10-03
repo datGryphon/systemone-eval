@@ -36,9 +36,10 @@ We do not duplicate that logic.
 
 ### Base suite
 
-Most base catalog IDs can be partitioned by their Decision Index normalizer. Catalog
-IDs that share a normalizer run together because that normalizer expects all of its
-source data to be present.
+For the current 0.2.1 edition, the base rows are rebuilt from Decision Index's 0.1
+sources, then Decision Index applies the 0.2.x release cuts during final assembly.
+Most base catalog IDs can be partitioned by normalizer. Catalog IDs that share a
+normalizer run together because it expects all of its source data to be present.
 
 There is one extra dependency discovered during the end-to-end build: BRIGHT reads
 ToolRet's retrieval mapping while normalizing, so catalog IDs **2 and 36** share a
