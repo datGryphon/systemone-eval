@@ -18,6 +18,9 @@ outputs:
   executable:
     description: Absolute path to the Decision Index CLI.
     value: ${{ steps.paths.outputs.executable }}
+  python-path:
+    description: Absolute path to the Decision Index environment Python.
+    value: ${{ steps.paths.outputs.python-path }}
 
 runs:
   using: composite
@@ -46,4 +49,6 @@ runs:
     - name: Publish executable
       id: paths
       shell: bash
-      run: echo "executable=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/decision-index" >> "$GITHUB_OUTPUT"
+      run: |
+        echo "executable=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/decision-index" >> "$GITHUB_OUTPUT"
+        echo "python-path=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" >> "$GITHUB_OUTPUT"
