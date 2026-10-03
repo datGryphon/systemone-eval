@@ -1,0 +1,29 @@
+name: Read evaluation stack
+description: Validate stack.json and publish pinned dependency versions.
+
+inputs:
+  path:
+    description: Stack configuration path.
+    required: false
+    default: stack.json
+
+outputs:
+  llama-cpp-ref:
+    description: Pinned llama.cpp ref.
+    value: ${{ steps.stack.outputs.llama-cpp-ref }}
+  decision-index-ref:
+    description: Pinned Decision Index ref.
+    value: ${{ steps.stack.outputs.decision-index-ref }}
+  decision-index-edition:
+    description: Pinned Decision Index edition.
+    value: ${{ steps.stack.outputs.decision-index-edition }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read stack
+      id: stack
+      shell: bash
+      env:
+        STACK_PATH: ${{ inputs.path }}
+      run: python3 "$GITHUB_WORKSPACE/scripts/stack_config.py" "$STACK_PATH" --github-output "$GITHUB_OUTPUT"
