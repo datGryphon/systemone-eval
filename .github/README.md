@@ -55,7 +55,7 @@ mixed redistribution terms, so persistent artifacts live in the private
 
 ```text
 decision-index/<edition>/<decision-index-ref>/
-├── base/<builder-group>/normalized/*.jsonl
+├── base/<group>/normalized/*.jsonl
 ├── added/<catalog-id>/added-rows.jsonl
 └── suite/
 ```
