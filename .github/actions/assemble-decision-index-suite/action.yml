@@ -1,5 +1,5 @@
 name: Assemble Decision Index suite
-description: Download all published shards, rebuild the canonical frozen suite, and verify upstream hashes.
+description: Download published shards, rebuild the canonical frozen suite, verify it upstream, and publish it.
 
 inputs:
   python-path:
@@ -8,8 +8,20 @@ inputs:
   decision-index:
     description: Path to Decision Index CLI.
     required: true
+  hf:
+    description: Path to the hf CLI.
+    required: true
   repo:
-    description: Hugging Face dataset repository ID containing shards.
+    description: Private Hugging Face dataset repository.
+    required: true
+  edition:
+    description: Decision Index edition.
+    required: true
+  ref:
+    description: Pinned Decision Index Git ref.
+    required: true
+  base-ids:
+    description: Space-separated complete base catalog ID set.
     required: true
   output-dir:
     description: Frozen suite output directory.
@@ -23,14 +35,83 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Assemble frozen suite
+    - name: Download base shards
+      shell: bash
+      env:
+        HF: ${{ inputs.hf }}
+        HF_REPO: ${{ inputs.repo }}
+        EDITION: ${{ inputs.edition }}
+        DI_REF: ${{ inputs.ref }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: >-
+        "$HF" download "$HF_REPO" --repo-type dataset
+        --include "decision-index/$EDITION/$DI_REF/base/*/normalized/*.jsonl"
+        --local-dir "$WORK_DIR/download"
+
+    - name: Download added shards
+      shell: bash
+      env:
+        HF: ${{ inputs.hf }}
+        HF_REPO: ${{ inputs.repo }}
+        EDITION: ${{ inputs.edition }}
+        DI_REF: ${{ inputs.ref }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: >-
+        "$HF" download "$HF_REPO" --repo-type dataset
+        --include "decision-index/$EDITION/$DI_REF/added/*/added-rows.jsonl"
+        --local-dir "$WORK_DIR/download"
+
+    - name: Stage Decision Index shards
       shell: bash
       env:
         PYTHON_PATH: ${{ inputs.python-path }}
+        EDITION: ${{ inputs.edition }}
+        DI_REF: ${{ inputs.ref }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: >-
+        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/stage_suite_shards.py"
+        --source "$WORK_DIR/download/decision-index/$EDITION/$DI_REF"
+        --work "$WORK_DIR/rebuild"
+        --added-out "$WORK_DIR/added-rows.jsonl"
+
+    - name: Rebuild canonical base rows
+      shell: bash
+      env:
         DECISION_INDEX: ${{ inputs.decision-index }}
-        HF_REPO: ${{ inputs.repo }}
+        EDITION: ${{ inputs.edition }}
+        BASE_IDS: ${{ inputs.base-ids }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: |
+        read -ra ids <<< "$BASE_IDS"
+        "$DECISION_INDEX" suite rebuild --edition "$EDITION" --work "$WORK_DIR/rebuild" --skip-download --skip-normalize --only "${ids[@]}"
+
+    - name: Import and verify canonical suite
+      shell: bash
+      env:
+        DECISION_INDEX: ${{ inputs.decision-index }}
+        EDITION: ${{ inputs.edition }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
         WORK_DIR: ${{ inputs.work-dir }}
       run: |
+        rm -rf "$OUTPUT_DIR"
+        "$DECISION_INDEX" suite import \
+          --edition "$EDITION" \
+          --dir "$OUTPUT_DIR" \
+          --rows "$WORK_DIR/rebuild/artifacts/benchmark-suite/release-v2-rebuilt/selected-rows.jsonl.gz" \
+          --added-rows "$WORK_DIR/added-rows.jsonl"
+        "$DECISION_INDEX" suite verify --edition "$EDITION" --dir "$OUTPUT_DIR"
+        cp "$GITHUB_WORKSPACE/stack.json" "$OUTPUT_DIR/systemone-stack.json"
 
-        "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/assemble_suite.py" --repo "$HF_REPO" --decision-index "$DECISION_INDEX" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
+    - name: Publish verified suite
+      shell: bash
+      env:
+        HF: ${{ inputs.hf }}
+        HF_REPO: ${{ inputs.repo }}
+        EDITION: ${{ inputs.edition }}
+        DI_REF: ${{ inputs.ref }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: >-
+        "$HF" upload "$HF_REPO" "$OUTPUT_DIR"
+        "decision-index/$EDITION/$DI_REF/suite"
+        --repo-type dataset
+        --commit-message "systemone-eval: publish verified Decision Index $EDITION suite"
