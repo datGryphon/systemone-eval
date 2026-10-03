@@ -1,0 +1,30 @@
+name: Build Decision Index added shard
+description: Rebuild one Decision Index added catalog and retain its row shard.
+
+inputs:
+  decision-index:
+    description: Path to Decision Index CLI.
+    required: true
+  catalog-id:
+    description: Decision Index added catalog ID.
+    required: true
+  output-dir:
+    description: Shard artifact output directory.
+    required: false
+    default: artifacts/added-shard
+  work-dir:
+    description: Temporary Decision Index rebuild workspace.
+    required: false
+    default: work
+
+runs:
+  using: composite
+  steps:
+    - name: Build added shard
+      shell: bash
+      env:
+        DECISION_INDEX: ${{ inputs.decision-index }}
+        CATALOG_ID: ${{ inputs.catalog-id }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: python3 "$GITHUB_WORKSPACE/scripts/build_added_shard.py" --decision-index "$DECISION_INDEX" --catalog-id "$CATALOG_ID" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
