@@ -6,48 +6,8 @@ from pathlib import Path
 
 from huggingface_hub import HfApi
 
+from artifact_layout import artifact_prefix, validate_shard, validate_suite
 from stack_config import load_stack
-
-
-def artifact_prefix(stack: dict, kind: str, catalog_id: int | None) -> str:
-    decision_index = stack["decision_index"]
-    root = f"decision-index/{decision_index['edition']}/{decision_index['ref']}"
-    if kind == "suite":
-        if catalog_id is not None:
-            raise ValueError("suite artifacts do not take a catalog ID")
-        return f"{root}/suite"
-    if catalog_id is None:
-        raise ValueError(f"{kind} artifacts require a catalog ID")
-    return f"{root}/{kind}/{catalog_id:03d}"
-
-
-def validate_source(source: Path, stack: dict, kind: str, catalog_id: int | None) -> None:
-    if kind == "suite":
-        required = {
-            "selected-rows.jsonl.gz",
-            "added-rows.jsonl.gz",
-            "excluded-questions.json",
-            "manifest.json",
-        }
-        missing = [name for name in required if not (source / name).exists()]
-        if missing:
-            raise ValueError(f"suite artifact missing files: {missing}")
-        return
-
-    manifest_path = source / "manifest.json"
-    if not manifest_path.exists():
-        raise ValueError(f"missing shard manifest: {manifest_path}")
-    manifest = json.loads(manifest_path.read_text())
-    if manifest.get("stack") != stack:
-        raise ValueError("shard stack does not match current stack.json")
-    if manifest.get("catalog_id") != catalog_id:
-        raise ValueError("shard catalog ID does not match publish target")
-    expected_kind = {
-        "base": "decision-index-base-normalized-shard",
-        "added": "decision-index-added-rows-shard",
-    }[kind]
-    if manifest.get("kind") != expected_kind:
-        raise ValueError(f"unexpected shard kind: {manifest.get('kind')}")
 
 
 def main() -> int:
@@ -65,7 +25,12 @@ def main() -> int:
         raise SystemExit(f"artifact directory not found: {args.source}")
 
     stack = load_stack(args.stack)
-    validate_source(args.source, stack, args.kind, args.catalog_id)
+    if args.kind == "suite":
+        validate_suite(args.source)
+    else:
+        if args.catalog_id is None:
+            raise ValueError(f"{args.kind} artifacts require a catalog ID")
+        validate_shard(args.source, stack, args.kind, args.catalog_id)
     prefix = artifact_prefix(stack, args.kind, args.catalog_id)
 
     api = HfApi()
