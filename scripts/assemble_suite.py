@@ -13,7 +13,14 @@ from decision_index.suite.build.adapters_added import ORDER as ADDED_ORDER
 from decision_index.suite.build.rebuild import BUILDERS
 from decision_index.suite.io import Suite, sha256_file
 
-from artifact_layout import artifact_prefix, artifact_root, sha256, validate_shard
+from artifact_layout import (
+    artifact_prefix,
+    artifact_root,
+    sha256,
+    validate_added_shard,
+    validate_base_shard,
+)
+from base_groups import base_builder_groups
 from stack_config import load_stack
 
 
@@ -59,13 +66,23 @@ def copy_base_normalized(download: Path, stack: dict, build_work: Path) -> list[
     normalized.mkdir(parents=True, exist_ok=True)
     records = []
 
-    for catalog_id in sorted(int(value) for value in BUILDERS):
-        shard = download / artifact_prefix(stack, "base", catalog_id)
-        manifest = validate_shard(shard, stack, "base", catalog_id)
+    for group in base_builder_groups():
+        shard = download / artifact_prefix(
+            stack,
+            "base",
+            group_key=group["key"],
+        )
+        manifest = validate_base_shard(
+            shard,
+            stack,
+            group["key"],
+            group["catalog_ids"],
+        )
         source_dir = shard / "normalized"
         files = sorted(source_dir.glob("*.jsonl"))
         if not files:
-            raise RuntimeError(f"base shard {catalog_id} has no normalized files")
+            raise RuntimeError(f"base shard {group['key']} has no normalized files")
+
         for source in files:
             target = normalized / source.name
             if target.exists():
@@ -73,9 +90,12 @@ def copy_base_normalized(download: Path, stack: dict, build_work: Path) -> list[
                     raise RuntimeError(f"conflicting normalized file: {source.name}")
             else:
                 shutil.copy2(source, target)
+
         records.append(
             {
-                "catalog_id": catalog_id,
+                "group_key": group["key"],
+                "builder": group["builder"],
+                "catalog_ids": group["catalog_ids"],
                 "manifest_sha256": sha256(shard / "manifest.json"),
                 "normalized_files": [path.name for path in files],
                 "normalized_bytes": manifest["normalized_bytes"],
@@ -88,8 +108,16 @@ def combine_added(download: Path, stack: dict, output: Path) -> list[dict]:
     records = []
     with output.open("wb") as combined:
         for catalog_id in ADDED_ORDER:
-            shard = download / artifact_prefix(stack, "added", int(catalog_id))
-            manifest = validate_shard(shard, stack, "added", int(catalog_id))
+            shard = download / artifact_prefix(
+                stack,
+                "added",
+                catalog_id=int(catalog_id),
+            )
+            manifest = validate_added_shard(
+                shard,
+                stack,
+                int(catalog_id),
+            )
             source = shard / "added-rows.jsonl"
             if not source.exists():
                 raise RuntimeError(f"added shard {catalog_id} has no added-rows.jsonl")
