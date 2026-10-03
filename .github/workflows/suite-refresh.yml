@@ -89,7 +89,7 @@ jobs:
         with:
           python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
-          catalog-ids: ${{ toJSON(matrix.catalog_ids) }}
+          catalog-ids: ${{ matrix.catalog_ids_json }}
           output-dir: artifacts/base-${{ matrix.key }}
           work-dir: work/base-${{ matrix.key }}
 
@@ -102,7 +102,7 @@ jobs:
           repo: ${{ vars.HF_SUITE_REPO }}
           kind: base
           group-key: ${{ matrix.key }}
-          catalog-ids: ${{ toJSON(matrix.catalog_ids) }}
+          catalog-ids: ${{ matrix.catalog_ids_json }}
           source: artifacts/base-${{ matrix.key }}
 
   added:
