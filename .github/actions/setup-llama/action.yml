@@ -1,0 +1,40 @@
+name: Set up llama.cpp
+description: Check out and build a pinned llama-server.
+
+inputs:
+  ref:
+    description: Exact llama.cpp commit or tag.
+    required: true
+  path:
+    description: Checkout/build path relative to the workspace.
+    required: false
+    default: .deps/llama.cpp
+
+outputs:
+  server-path:
+    description: Absolute path to llama-server.
+    value: ${{ steps.paths.outputs.server-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check out llama.cpp
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: ggml-org/llama.cpp
+        ref: ${{ inputs.ref }}
+        path: ${{ inputs.path }}
+        persist-credentials: false
+
+    - name: Configure llama.cpp
+      shell: bash
+      run: cmake -S "${{ inputs.path }}" -B "${{ inputs.path }}/build" -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build llama-server
+      shell: bash
+      run: cmake --build "${{ inputs.path }}/build" --config Release --target llama-server --parallel
+
+    - name: Publish llama-server path
+      id: paths
+      shell: bash
+      run: echo "server-path=$GITHUB_WORKSPACE/${{ inputs.path }}/build/bin/llama-server" >> "$GITHUB_OUTPUT"
