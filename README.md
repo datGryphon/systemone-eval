@@ -63,7 +63,7 @@ Artifacts are stored under:
 
 ```text
 decision-index/<edition>/<decision-index-git-ref>/
-├── base/<catalog-id>/
+├── base/<builder-group>/
 ├── added/<catalog-id>/
 └── suite/
 ```
@@ -72,9 +72,12 @@ decision-index/<edition>/<decision-index-git-ref>/
 
 `.github/workflows/suite-refresh.yml` is manual-only.
 
-It derives the base and added catalog lists from the pinned Decision Index source,
-runs each catalog in an independent GitHub-hosted job, and publishes only the
-reduced shard artifact to the private HF dataset.
+It derives the build plan from the pinned Decision Index source. Base benchmarks are
+grouped by their upstream normalizer function, because several catalog IDs share one
+builder and that builder requires all of its source datasets to be present together.
+Each unique base builder group and each added benchmark runs in an independent
+GitHub-hosted job, publishing only the reduced shard artifact to the private HF
+dataset.
 
 After all shard jobs succeed, the assembly job:
 
