@@ -7,11 +7,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-def request_json(url: str, payload: dict | None = None, timeout: float = 5.0) -> dict:
-    body = None if payload is None else json.dumps(payload).encode()
-    headers = {} if payload is None else {"Content-Type": "application/json"}
-    request = urllib.request.Request(url, data=body, headers=headers)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+def get_json(url: str, timeout: float = 5.0) -> dict:
+    with urllib.request.urlopen(url, timeout=timeout) as response:
         return json.load(response)
 
 def process_memory_kib(pid: int) -> dict[str, int]:
@@ -70,8 +67,7 @@ class SystemOneServer:
             if self.process.poll() is not None:
                 raise RuntimeError(f"llama-server exited with code {self.process.returncode}")
             try:
-                health = request_json(f"{self.base_url}/health")
-                (self.output_dir / "health.json").write_text(json.dumps(health, indent=2) + "\n")
+                get_json(f"{self.base_url}/health")
                 self.loaded_memory = process_memory_kib(self.process.pid)
                 return self
             except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
