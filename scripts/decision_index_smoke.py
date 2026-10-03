@@ -3,7 +3,6 @@ import argparse
 import json
 import os
 import platform
-import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -31,13 +30,11 @@ def runner_info() -> dict:
         ),
         None,
     )
-    disk = shutil.disk_usage("/")
     return {
         "platform": platform.platform(),
         "cpu_model": cpu,
-        "logical_cpus": os.cpu_count(),
+        "logical_cpus": len(os.sched_getaffinity(0)),
         "memory_total_kib": mem_total_kib,
-        "root_disk_bytes": disk.total,
     }
 
 def main() -> int:
@@ -70,10 +67,8 @@ def main() -> int:
                 "--fresh",
             ]
             started_ns = time.perf_counter_ns()
-            completed = subprocess.run(command, env=os.environ.copy(), text=True, check=False)
+            subprocess.run(command, check=True)
             evaluation_wall_ms = (time.perf_counter_ns() - started_ns) / 1_000_000
-            if completed.returncode:
-                raise RuntimeError(f"Decision Index exited with {completed.returncode}")
 
             results = read_results(run_dir / "results.jsonl")
             if not results:
