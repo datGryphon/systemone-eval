@@ -2,6 +2,9 @@ name: Build Decision Index base shard
 description: Rebuild one complete Decision Index base builder group and retain normalized artifacts.
 
 inputs:
+  python-path:
+    description: Python interpreter from the pinned Decision Index environment.
+    required: true
   decision-index:
     description: Path to Decision Index CLI.
     required: true
@@ -23,8 +26,9 @@ runs:
     - name: Build base shard
       shell: bash
       env:
+        PYTHON_PATH: ${{ inputs.python-path }}
         DECISION_INDEX: ${{ inputs.decision-index }}
         CATALOG_IDS: ${{ inputs.catalog-ids }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
         WORK_DIR: ${{ inputs.work-dir }}
-      run: python3 "$GITHUB_WORKSPACE/scripts/build_base_shard.py" --decision-index "$DECISION_INDEX" --catalog-ids-json "$CATALOG_IDS" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
+      run: "$PYTHON_PATH" "$GITHUB_WORKSPACE/scripts/build_base_shard.py" --decision-index "$DECISION_INDEX" --catalog-ids-json "$CATALOG_IDS" --stack "$GITHUB_WORKSPACE/stack.json" --work "$WORK_DIR" --output "$OUTPUT_DIR"
