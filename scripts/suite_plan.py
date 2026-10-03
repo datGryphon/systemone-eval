@@ -53,6 +53,12 @@ def main() -> int:
                 f"added={json.dumps({'include': added}, separators=(',', ':'))}",
                 file=output,
             )
+            print(
+                "base-ids=" + " ".join(
+                    str(catalog_id) for catalog_id in sorted(BUILDERS)
+                ),
+                file=output,
+            )
 
     print(json.dumps(payload, indent=2))
     return 0
