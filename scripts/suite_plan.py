@@ -8,37 +8,26 @@ from decision_index.suite.build.adapters_added import ORDER
 from decision_index.suite.build.rebuild import BUILDERS
 
 
-# BRIGHT's adapter reads ToolRet's task/category mapping even when only BRIGHT
-# is requested, so those source acquisitions must share one shard worker.
-SOURCE_DEPENDENCY_GROUP = {2: "retrieval", 36: "retrieval"}
+# BRIGHT reads ToolRet's retrieval mapping during normalization.
+SOURCE_DEPENDENCIES = {2: "retrieval", 36: "retrieval"}
 
 
 def base_groups() -> list[dict]:
-    grouped: dict[tuple[str, str], list[int]] = defaultdict(list)
-    builders = {}
+    groups = defaultdict(list)
 
     for catalog_id, builder in BUILDERS.items():
-        dependency = SOURCE_DEPENDENCY_GROUP.get(int(catalog_id))
-        identity = (
-            ("source-dependency", dependency)
-            if dependency
-            else (builder.__module__, builder.__qualname__)
-        )
-        grouped[identity].append(int(catalog_id))
-        builders[identity] = builder
+        identity = SOURCE_DEPENDENCIES.get(int(catalog_id))
+        if identity is None:
+            identity = (builder.__module__, builder.__qualname__)
+        groups[identity].append(int(catalog_id))
 
-    groups = []
-    for identity, catalog_ids in grouped.items():
-        ids = sorted(catalog_ids)
-        builder = builders[identity]
-        groups.append(
-            {
-                "key": "-".join(f"{catalog_id:03d}" for catalog_id in ids),
-                "builder": f"{builder.__module__.rsplit('.', 1)[-1]}.{builder.__name__}",
-                "catalog_ids": " ".join(str(catalog_id) for catalog_id in ids),
-            }
-        )
-    return sorted(groups, key=lambda group: [int(x) for x in group["catalog_ids"].split()])
+    return [
+        {
+            "key": "-".join(f"{catalog_id:03d}" for catalog_id in ids),
+            "catalog_ids": " ".join(str(catalog_id) for catalog_id in ids),
+        }
+        for ids in sorted((sorted(ids) for ids in groups.values()))
+    ]
 
 
 def main() -> int:
@@ -51,26 +40,17 @@ def main() -> int:
         {"key": f"{int(catalog_id):03d}", "catalog_id": int(catalog_id)}
         for catalog_id in ORDER
     ]
-    payload = {"base": base, "added": added}
 
     if args.github_output:
         with args.github_output.open("a") as output:
+            print(f"base={json.dumps({'include': base}, separators=(',', ':'))}", file=output)
+            print(f"added={json.dumps({'include': added}, separators=(',', ':'))}", file=output)
             print(
-                f"base={json.dumps({'include': base}, separators=(',', ':'))}",
-                file=output,
-            )
-            print(
-                f"added={json.dumps({'include': added}, separators=(',', ':'))}",
-                file=output,
-            )
-            print(
-                "base-ids=" + " ".join(
-                    str(catalog_id) for catalog_id in sorted(BUILDERS)
-                ),
+                "base-ids=" + " ".join(str(catalog_id) for catalog_id in sorted(BUILDERS)),
                 file=output,
             )
 
-    print(json.dumps(payload, indent=2))
+    print(json.dumps({"base": base, "added": added}, indent=2))
     return 0
 
 
