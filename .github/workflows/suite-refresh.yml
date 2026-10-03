@@ -17,20 +17,17 @@ jobs:
     outputs:
       base: ${{ steps.matrix.outputs.base }}
       added: ${{ steps.matrix.outputs.added }}
+      base-ids: ${{ steps.matrix.outputs.base-ids }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Validate private HF destination
+      - name: Require private HF destination
         env:
           HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-        run: |
-          if [[ -z "$HF_SUITE_REPO" ]]; then
-            echo "::error::Set repository variable HF_SUITE_REPO to the private Hugging Face dataset repo ID."
-            exit 1
-          fi
+        run: test -n "$HF_SUITE_REPO"
 
       - name: Read pinned stack
         id: stack
@@ -41,17 +38,8 @@ jobs:
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
-          rebuild: 'true'
 
-      - name: Verify private HF storage and gated access
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
-          PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
-        run: >-
-          "$PYTHON_PATH" scripts/hf_suite_preflight.py --repo "$HF_SUITE_REPO"
-
-      - name: Derive builder matrix from pinned Decision Index
+      - name: Derive shard matrix from pinned Decision Index
         id: matrix
         env:
           PYTHON_PATH: ${{ steps.decision-index.outputs.python-path }}
@@ -84,39 +72,39 @@ jobs:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Build normalized shard
+      - name: Rebuild base shard
         uses: ./.github/actions/build-decision-index-base-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
         with:
-          python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
-          catalog-ids: ${{ matrix.catalog_ids_json }}
-          output-dir: artifacts/base-${{ matrix.key }}
+          catalog-ids: ${{ matrix.catalog_ids }}
           work-dir: work/base-${{ matrix.key }}
 
-      - name: Publish private shard
-        uses: ./.github/actions/publish-decision-index-artifact
+      - name: Publish normalized shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-        with:
-          python-path: ${{ steps.decision-index.outputs.python-path }}
-          repo: ${{ vars.HF_SUITE_REPO }}
-          kind: base
-          group-key: ${{ matrix.key }}
-          catalog-ids: ${{ matrix.catalog_ids_json }}
-          source: artifacts/base-${{ matrix.key }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
+          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
+          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
+          KEY: ${{ matrix.key }}
+        run: >-
+          "$HF" upload "$HF_SUITE_REPO"
+          "work/base-$KEY/artifacts/benchmark-suite/normalized"
+          "decision-index/$EDITION/$DI_REF/base/$KEY/normalized"
+          --repo-type dataset
+          --commit-message "systemone-eval: publish base shard $KEY"
 
   added:
-    name: Added shard / ${{ matrix.catalog_id }}
+    name: Added shard / ${{ matrix.key }}
     needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 4
-      matrix:
-        catalog_id: ${{ fromJSON(needs.plan.outputs.added) }}
+      matrix: ${{ fromJSON(needs.plan.outputs.added) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -134,26 +122,30 @@ jobs:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Build added row shard
+      - name: Rebuild added shard
         uses: ./.github/actions/build-decision-index-added-shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
         with:
           decision-index: ${{ steps.decision-index.outputs.executable }}
+          edition: ${{ steps.stack.outputs.decision-index-edition }}
           catalog-id: ${{ matrix.catalog_id }}
-          output-dir: artifacts/added-${{ matrix.catalog_id }}
-          work-dir: work/added-${{ matrix.catalog_id }}
+          work-dir: work/added-${{ matrix.key }}
 
-      - name: Publish private shard
-        uses: ./.github/actions/publish-decision-index-artifact
+      - name: Publish added shard
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-        with:
-          python-path: ${{ steps.decision-index.outputs.python-path }}
-          repo: ${{ vars.HF_SUITE_REPO }}
-          kind: added
-          catalog-id: ${{ matrix.catalog_id }}
-          source: artifacts/added-${{ matrix.catalog_id }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
+          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
+          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
+          KEY: ${{ matrix.key }}
+        run: >-
+          "$HF" upload "$HF_SUITE_REPO"
+          "work/added-$KEY/artifacts/benchmark-suite/release-v2-rebuilt/added-rows.jsonl"
+          "decision-index/$EDITION/$DI_REF/added/$KEY/added-rows.jsonl"
+          --repo-type dataset
+          --commit-message "systemone-eval: publish added shard $KEY"
 
   assemble:
     name: Assemble canonical suite
@@ -180,21 +172,15 @@ jobs:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
           rebuild: 'true'
 
-      - name: Assemble and verify upstream hashes
+      - name: Assemble, verify, and publish suite
         uses: ./.github/actions/assemble-decision-index-suite
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
         with:
           python-path: ${{ steps.decision-index.outputs.python-path }}
           decision-index: ${{ steps.decision-index.outputs.executable }}
+          hf: ${{ steps.decision-index.outputs.hf-path }}
           repo: ${{ vars.HF_SUITE_REPO }}
-
-      - name: Publish frozen suite
-        uses: ./.github/actions/publish-decision-index-artifact
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
-        with:
-          python-path: ${{ steps.decision-index.outputs.python-path }}
-          repo: ${{ vars.HF_SUITE_REPO }}
-          kind: suite
-          source: artifacts/frozen-suite
+          edition: ${{ steps.stack.outputs.decision-index-edition }}
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+          base-ids: ${{ needs.plan.outputs.base-ids }}
