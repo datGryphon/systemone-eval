@@ -24,7 +24,7 @@ flowchart TD
     end
 
     subgraph EVAL["Evaluation"]
-        SPLIT[4 row partitions]
+        SPLIT[8 row partitions]
         MODEL[Julia-1 Q8 + pinned llama.cpp]
         SERVER[llama-server /v1/systemone]
         ENGINE[Decision Index HTTP engine]
@@ -50,9 +50,10 @@ It does not substitute representative fixtures for the real benchmark path:
 3. evaluate the complete suite with Julia-1 Q8;
 4. score the combined results with Decision Index.
 
-The evaluation is split four ways only to stay comfortably inside a GitHub job's
-runtime limit. `scripts/split_suite.py` partitions the scoreable rows; the final
-score job recombines all four standard Decision Index result files before scoring.
+The evaluation defaults to eight shards so slower/larger models have room inside
+GitHub's six-hour job limit. `scripts/split_suite.py` partitions the complete
+scoreable suite; the final score job recombines all eight standard Decision Index
+result files before scoring.
 
 The suite format, hashes, source pins, and licensing rules remain upstream concerns:
 [Decision Index suite docs](https://github.com/apolinario/decision-index/blob/main/docs/suite.md).
