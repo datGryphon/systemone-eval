@@ -2,65 +2,351 @@ name: CI
 
 on:
   pull_request:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: systemone-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  integration:
-    name: Decision Index / Julia-1 Q8
+  plan:
+    name: Plan pipeline
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    outputs:
+      repo: ${{ steps.target.outputs.repo }}
+      revision: ${{ steps.target.outputs.revision }}
+      base: ${{ steps.matrix.outputs.base }}
+      added: ${{ steps.matrix.outputs.added }}
+      base-ids: ${{ steps.matrix.outputs.base-ids }}
+      decision-index-ref: ${{ steps.stack.outputs.decision-index-ref }}
+      edition: ${{ steps.stack.outputs.decision-index-edition }}
+      llama-ref: ${{ steps.stack.outputs.llama-cpp-ref }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Read pinned stack
-        id: stack
+      - id: stack
         uses: ./.github/actions/read-stack
 
-      - name: Set up llama.cpp
-        id: llama
-        uses: ./.github/actions/setup-llama
-        with:
-          ref: ${{ steps.stack.outputs.llama-cpp-ref }}
-
-      - name: Set up Decision Index
-        id: decision-index
+      - id: decision-index
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ steps.stack.outputs.decision-index-ref }}
 
-      - name: Validate suite plan
+      - name: Select clean storage
+        id: target
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_SUITE_REPO: ${{ vars.HF_SUITE_REPO }}
+          HF_SUITE_PR_REPO: ${{ vars.HF_SUITE_PR_REPO }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EDITION: ${{ steps.stack.outputs.decision-index-edition }}
+          DI_REF: ${{ steps.stack.outputs.decision-index-ref }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            repo="$HF_SUITE_PR_REPO"
+            revision="pr-$PR_NUMBER"
+            test -n "$repo"
+            "$HF" repos branch delete "$repo" "$revision" --repo-type dataset || true
+            "$HF" repos branch create "$repo" "$revision" --repo-type dataset
+          else
+            repo="$HF_SUITE_REPO"
+            revision="main"
+            test -n "$repo"
+            "$HF" repos delete-files "$repo" "decision-index/$EDITION/$DI_REF/" \
+              --repo-type dataset || true
+          fi
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Build shard matrix
+        id: matrix
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
         run: >-
-          "$PYTHON" scripts/suite_plan.py >/dev/null
+          "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
 
-      - name: Run Decision Index HTTP smoke
+  base:
+    name: Base / ${{ matrix.key }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJSON(needs.plan.outputs.base) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ needs.plan.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Rebuild shard
         env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
+          CATALOG_IDS: ${{ matrix.catalog_ids }}
+          WORK: work/base-${{ matrix.key }}
+        run: |
+          read -ra ids <<< "$CATALOG_IDS"
+          "$DECISION_INDEX" suite rebuild --edition 0.1 --work "$WORK" --only "${ids[@]}"
+
+      - name: Publish shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_REPO: ${{ needs.plan.outputs.repo }}
+          HF_REVISION: ${{ needs.plan.outputs.revision }}
+          SOURCE: work/base-${{ matrix.key }}/artifacts/benchmark-suite/normalized
+          DEST: decision-index/${{ needs.plan.outputs.edition }}/${{ needs.plan.outputs.decision-index-ref }}/base/${{ matrix.key }}/normalized
+        run: >-
+          "$HF" upload "$HF_REPO" "$SOURCE" "$DEST"
+          --repo-type dataset --revision "$HF_REVISION"
+
+  added:
+    name: Added / ${{ matrix.key }}
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.added) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ needs.plan.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Rebuild shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
+          EDITION: ${{ needs.plan.outputs.edition }}
+          WORK: work/added-${{ matrix.key }}
+        run: >-
+          "$DECISION_INDEX" suite rebuild
+          --edition "$EDITION"
+          --work "$WORK"
+          --only "${{ matrix.catalog_id }}"
+
+      - name: Publish shard
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_REPO: ${{ needs.plan.outputs.repo }}
+          HF_REVISION: ${{ needs.plan.outputs.revision }}
+          SOURCE: work/added-${{ matrix.key }}/artifacts/benchmark-suite/release-v2-rebuilt/added-rows.jsonl
+          DEST: decision-index/${{ needs.plan.outputs.edition }}/${{ needs.plan.outputs.decision-index-ref }}/added/${{ matrix.key }}/added-rows.jsonl
+        run: >-
+          "$HF" upload "$HF_REPO" "$SOURCE" "$DEST"
+          --repo-type dataset --revision "$HF_REVISION"
+
+  assemble:
+    name: Assemble suite
+    needs: [plan, base, added]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ needs.plan.outputs.decision-index-ref }}
+          rebuild: 'true'
+
+      - name: Assemble and verify
+        uses: ./.github/actions/assemble-decision-index-suite
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+        with:
+          decision-index: ${{ steps.decision-index.outputs.executable }}
+          repo: ${{ needs.plan.outputs.repo }}
+          revision: ${{ needs.plan.outputs.revision }}
+          edition: ${{ needs.plan.outputs.edition }}
+          ref: ${{ needs.plan.outputs.decision-index-ref }}
+          base-ids: ${{ needs.plan.outputs.base-ids }}
+
+  evaluate:
+    name: Evaluate Julia-1 Q8 / ${{ matrix.shard }}
+    needs: [plan, assemble]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0, 1, 2, 3]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ needs.plan.outputs.decision-index-ref }}
+
+      - id: llama
+        uses: ./.github/actions/setup-llama
+        with:
+          ref: ${{ needs.plan.outputs.llama-ref }}
+
+      - name: Download suite
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_REPO: ${{ needs.plan.outputs.repo }}
+          HF_REVISION: ${{ needs.plan.outputs.revision }}
+          EDITION: ${{ needs.plan.outputs.edition }}
+          DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
+        run: |
+          "$HF" download "$HF_REPO" --repo-type dataset --revision "$HF_REVISION" \
+            --include "decision-index/$EDITION/$DI_REF/suite/*" \
+            --local-dir work/hf
+
+      - name: Select evaluation rows
+        env:
+          PYTHON: ${{ steps.decision-index.outputs.python-path }}
+          EDITION: ${{ needs.plan.outputs.edition }}
+          DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
+          SHARD: ${{ matrix.shard }}
+        run: >-
+          "$PYTHON" scripts/split_suite.py
+          --suite "work/hf/decision-index/$EDITION/$DI_REF/suite"
+          --edition "$EDITION"
+          --shard "$SHARD"
+          --shards 4
+          --out "work/eval-rows/$SHARD.jsonl.gz"
+
+      - name: Evaluate
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           SERVER: ${{ steps.llama.outputs.server-path }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
+          SHARD: ${{ matrix.shard }}
         run: >-
-          python3 scripts/decision_index_smoke.py
+          python3 scripts/evaluate.py
           --server "$SERVER"
           --decision-index "$DECISION_INDEX"
-          --rows tests/data/systemone-integration.jsonl
+          --rows "work/eval-rows/$SHARD.jsonl.gz"
           --models models.json
           --profile julia-1-q8
           --stack stack.json
-          --output artifacts/decision-index-smoke
+          --output artifacts/eval-shard
 
-      - name: Upload artifacts
-        if: always()
+      - name: Publish results
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_REPO: ${{ needs.plan.outputs.repo }}
+          HF_REVISION: ${{ needs.plan.outputs.revision }}
+          EDITION: ${{ needs.plan.outputs.edition }}
+          DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
+          LLAMA_REF: ${{ needs.plan.outputs.llama-ref }}
+          SHARD: ${{ matrix.shard }}
+        run: >-
+          "$HF" upload "$HF_REPO" artifacts/eval-shard
+          "decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/shards/$SHARD"
+          --repo-type dataset --revision "$HF_REVISION"
+
+  score:
+    name: Score Julia-1 Q8
+    needs: [plan, evaluate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ needs.plan.outputs.decision-index-ref }}
+
+      - name: Download suite and results
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_REPO: ${{ needs.plan.outputs.repo }}
+          HF_REVISION: ${{ needs.plan.outputs.revision }}
+          EDITION: ${{ needs.plan.outputs.edition }}
+          DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
+          LLAMA_REF: ${{ needs.plan.outputs.llama-ref }}
+        run: |
+          "$HF" download "$HF_REPO" --repo-type dataset --revision "$HF_REVISION" \
+            --include "decision-index/$EDITION/$DI_REF/suite/*" \
+            --include "decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/shards/*/decision-index/results.jsonl" \
+            --local-dir work/hf
+
+      - name: Combine and score
+        env:
+          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
+          EDITION: ${{ needs.plan.outputs.edition }}
+          DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
+          LLAMA_REF: ${{ needs.plan.outputs.llama-ref }}
+        run: |
+          mkdir -p artifacts/eval
+          base="work/hf/decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/shards"
+          for shard in 0 1 2 3; do
+            cat "$base/$shard/decision-index/results.jsonl"
+          done > artifacts/eval/results.jsonl
+
+          "$DECISION_INDEX" score \
+            --edition "$EDITION" \
+            --suite-dir "work/hf/decision-index/$EDITION/$DI_REF/suite" \
+            --results artifacts/eval/results.jsonl \
+            --engine http \
+            --out artifacts/eval
+
+          jq -e '.complete == true' artifacts/eval/scores.json
+
+      - name: Publish scores
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_REPO: ${{ needs.plan.outputs.repo }}
+          HF_REVISION: ${{ needs.plan.outputs.revision }}
+          EDITION: ${{ needs.plan.outputs.edition }}
+          DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
+          LLAMA_REF: ${{ needs.plan.outputs.llama-ref }}
+        run: >-
+          "$HF" upload "$HF_REPO" artifacts/eval
+          "decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/summary"
+          --exclude results.jsonl
+          --repo-type dataset --revision "$HF_REVISION"
+
+      - name: Upload score artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: systemone-integration
-          path: artifacts/
+          name: julia-1-q8-scores
+          path: |
+            artifacts/eval/benchmark-summary.json
+            artifacts/eval/index.json
+            artifacts/eval/scores.json
