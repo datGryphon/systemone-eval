@@ -1,0 +1,55 @@
+name: Clean PR data
+
+on:
+  pull_request_target:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: GitHub PR number to clean
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-data-cleanup-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: stack
+        uses: ./.github/actions/read-stack
+
+      - id: decision-index
+        uses: ./.github/actions/setup-decision-index
+        with:
+          ref: ${{ steps.stack.outputs.decision-index-ref }}
+
+      - name: Delete PR data branch
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_WRITE }}
+          HF: ${{ steps.decision-index.outputs.hf-path }}
+          HF_SUITE_PR_REPO: ${{ vars.HF_SUITE_PR_REPO }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          test -n "$HF_SUITE_PR_REPO"
+          test -n "$PR_NUMBER"
+          branch="pr-$PR_NUMBER"
+
+          if "$HF" repos branch delete "$HF_SUITE_PR_REPO" "$branch" --repo-type dataset; then
+            exit 0
+          fi
+
+          # A missing branch is already clean. Create/delete verifies that the
+          # repository and credentials are otherwise valid.
+          "$HF" repos branch create "$HF_SUITE_PR_REPO" "$branch" --repo-type dataset
+          "$HF" repos branch delete "$HF_SUITE_PR_REPO" "$branch" --repo-type dataset
