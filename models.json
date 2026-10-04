@@ -1,6 +1,11 @@
 {
   "julia-1-q8": {
     "repo": "ggml-org/Julia-1-GGUF",
-    "quant": "Q8_0"
+    "quant": "Q8_0",
+    "server_args": [
+      "--ctx-size", "8192",
+      "--batch-size", "8192",
+      "--ubatch-size", "8192"
+    ]
   }
 }
