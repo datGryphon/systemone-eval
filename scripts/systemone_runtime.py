@@ -18,14 +18,14 @@ def process_memory_kib(pid: int) -> dict[str, int]:
             values[key] = int(rest.split()[0])
     return values
 
-def load_profile(path: Path, name: str) -> dict[str, str]:
+def load_profile(path: Path, name: str) -> dict:
     profiles = json.loads(path.read_text())
     try:
         profile = profiles[name]
     except KeyError as exc:
         raise ValueError(f"unknown model profile: {name}") from exc
-    if set(profile) != {"repo", "quant"}:
-        raise ValueError(f"model profile {name!r} must contain exactly repo and quant")
+    if not {"repo", "quant"} <= set(profile):
+        raise ValueError(f"model profile {name!r} must contain repo and quant")
     return profile
 
 class SystemOneServer:
@@ -51,6 +51,7 @@ class SystemOneServer:
             "127.0.0.1",
             "--port",
             str(self.port),
+            *self.profile.get("server_args", []),
         ]
         self._log_handle = self.log_path.open("w")
         self.process = subprocess.Popen(
