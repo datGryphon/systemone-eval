@@ -194,12 +194,12 @@ jobs:
     name: Evaluate Julia-1 Q8 / ${{ matrix.shard }}
     needs: [plan, assemble]
     runs-on: ubuntu-24.04
-    timeout-minutes: 330
+    timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 8
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -240,7 +240,7 @@ jobs:
           --suite "work/hf/decision-index/$EDITION/$DI_REF/suite"
           --edition "$EDITION"
           --shard "$SHARD"
-          --shards 4
+          --shards 8
           --out "work/eval-rows/$SHARD.jsonl.gz"
 
       - name: Evaluate
@@ -314,7 +314,7 @@ jobs:
         run: |
           mkdir -p artifacts/eval
           base="work/hf/decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/shards"
-          for shard in 0 1 2 3; do
+          for shard in 0 1 2 3 4 5 6 7; do
             cat "$base/$shard/decision-index/results.jsonl"
           done > artifacts/eval/results.jsonl
 
