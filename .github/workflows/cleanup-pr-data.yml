@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-data-cleanup-${{ github.event.pull_request.number || inputs.pr_number }}
-  cancel-in-progress: false
+  group: systemone-pr-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
 
 jobs:
   cleanup:
