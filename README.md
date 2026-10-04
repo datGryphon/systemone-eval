@@ -3,7 +3,7 @@
 Reproducible CPU benchmarking for local decision models exposed through
 llama.cpp's `/v1/systemone` API.
 
-The project is focused on comparing:
+The project compares:
 
 - Decision Index quality
 - CPU inference latency
@@ -13,5 +13,6 @@ The project is focused on comparing:
 `models.json` defines the model/quant profiles under test. `stack.json` pins the
 llama.cpp and Decision Index revisions used for a run.
 
-For pipeline architecture, suite sharding, private artifact storage, and refresh
-behavior, see [`.github/README.md`](.github/README.md).
+Pull requests and `main` both run the complete data-build and evaluation pipeline.
+For pipeline architecture, private artifact storage, and cleanup behavior, see
+[`.github/README.md`](.github/README.md).
