@@ -146,7 +146,8 @@ job requires `scores.json.complete == true`.
 ## Pins
 
 `stack.json` records the llama.cpp ref, Decision Index ref, and Decision Index
-edition. `models.json` records the model repo and quant.
+edition. `models.json` records the model repo, quant, and any model-specific
+llama-server arguments needed for a valid benchmark run.
 
 Changing the Decision Index ref or edition creates a new canonical namespace.
 Changing llama.cpp creates a new evaluation namespace against the same suite.
