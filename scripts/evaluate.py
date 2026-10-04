@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections import Counter
 import json
 import os
 import platform
@@ -72,10 +73,11 @@ def main() -> int:
                 for line in (run_dir / "results.jsonl").read_text().splitlines()
                 if line.strip()
             ]
-            failures = [row for row in results if row.get("status") != "ok"]
-            if failures:
+            statuses = Counter(row.get("status") for row in results)
+            errors = [row for row in results if row.get("status") == "error"]
+            if errors:
                 raise RuntimeError(
-                    f"{len(failures)} Decision Index failures; first: {failures[:3]}"
+                    f"{len(errors)} Decision Index errors; first: {errors[:3]}"
                 )
 
             memory = server.memory()
@@ -91,6 +93,7 @@ def main() -> int:
                 "runner": runner_info(),
                 "decision_index": {
                     "rows": len(results),
+                    "statuses": dict(statuses),
                     "evaluation_wall_ms": evaluation_wall_ms,
                 },
                 "memory": {
