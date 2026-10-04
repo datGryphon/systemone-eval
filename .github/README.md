@@ -117,8 +117,9 @@ When a new head is pushed:
 
 The Git SHA is kept in evaluation metadata instead of the storage path.
 
-[`cleanup-pr-data.yml`](workflows/cleanup-pr-data.yml) deletes `pr-N` when the PR
-closes or merges. It can also be run manually with a PR number. Because the scratch
+[`cleanup-pr-data.yml`](workflows/cleanup-pr-data.yml) shares the PR pipeline's
+concurrency key, so closing a PR first cancels any still-running build. It then
+deletes `pr-N`. The cleanup can also be run manually with a PR number. Because the scratch
 dataset keeps each PR on its own branch, deleting the branch removes that PR's Git
 reference instead of accumulating generations under one shared branch.
 
