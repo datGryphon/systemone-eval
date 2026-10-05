@@ -1,18 +1,49 @@
 # systemone-eval
 
-Reproducible CPU benchmarking for local decision models exposed through
-llama.cpp's `/v1/systemone` API.
+CPU benchmarking for local decision models served by llama.cpp's `/v1/systemone`
+endpoint and scored with Decision Index.
 
-The project compares:
+The benchmark records:
 
-- Decision Index quality
-- CPU inference latency
-- loaded-idle RAM
-- peak llama-server RAM
+- Decision Index score and coverage
+- request latency
+- loaded-idle llama-server RSS
+- peak llama-server RSS
 
-`models.json` defines the model/quant profiles under test. `stack.json` pins the
-llama.cpp and Decision Index revisions used for a run.
+## Manual benchmarks
 
-Pull requests and `main` both run the complete data-build and evaluation pipeline.
-For pipeline architecture, private artifact storage, and cleanup behavior, see
-[`.github/README.md`](.github/README.md).
+Use **Actions → Benchmark model → Run workflow** to run a model against the
+published canonical suite.
+
+A run can use a saved profile from `models.json`, or an ad-hoc Hugging Face GGUF
+repo with a quant and result label. The workflow also exposes shard count,
+parallelism, context size, batch size, physical batch size, and extra
+`llama-server` arguments.
+
+Manual runs do not rebuild the Decision Index suite. Results are stored under:
+
+```text
+benchmarks/<github-run-id>/<label>/
+```
+
+## CI
+
+[CI](.github/workflows/ci.yml) rebuilds and verifies the pinned Decision Index suite,
+runs the Julia-1 Q8 baseline, and scores the combined results on pull requests and
+pushes to `main`.
+
+## Configuration
+
+- `models.json`: saved model profiles and default shard counts
+- `stack.json`: pinned llama.cpp revision, Decision Index revision, and edition
+
+See [`.github/PIPELINE.md`](.github/PIPELINE.md) for the pipeline and storage layout.
+
+## License
+
+This repository's original code is licensed under the MIT License.
+
+Decision Index and llama.cpp are separate projects under their own licenses.
+Benchmark datasets, model weights, and other third-party data are not covered by
+this repository's MIT license and remain subject to their respective licenses and
+terms.
