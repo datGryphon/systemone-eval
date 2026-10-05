@@ -46,22 +46,29 @@ flowchart TD
     SUITE[verified Decision Index suite]
     SPLIT[balance + shuffle rows]
     JOBS[parallel shard jobs]
+
+    MODEL[GGUF model]
     SERVER[llama-server /v1/systemone<br/>one per shard job]
     ENGINE[Decision Index HTTP engine]
-    SHARD_RESULTS[results.jsonl per shard]
+    RESULTS[results.jsonl per shard]
     COMBINE[combine shard results]
     SCORE[Decision Index score]
 
     CONFIG --> PLAN
+    PLAN --> MODEL
     PLAN --> SPLIT
     SUITE --> SPLIT
-    PLAN --> JOBS
     SPLIT --> JOBS
-    JOBS --> SERVER
+
     JOBS --> ENGINE
-    ENGINE --> SERVER
-    ENGINE --> SHARD_RESULTS
-    SHARD_RESULTS --> COMBINE --> SCORE
+    JOBS --> SERVER
+    MODEL --> SERVER
+
+    ENGINE -->|request| SERVER
+    SERVER -->|response| ENGINE
+    ENGINE --> RESULTS
+
+    RESULTS --> COMBINE --> SCORE
 ```
 
 ## CI workflow
