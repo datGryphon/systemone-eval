@@ -1,0 +1,20 @@
+name: Read evaluation stack
+description: Publish pins from stack.json.
+
+outputs:
+  llama-cpp-ref:
+    value: ${{ steps.stack.outputs.llama-cpp-ref }}
+  decision-index-ref:
+    value: ${{ steps.stack.outputs.decision-index-ref }}
+  decision-index-edition:
+    value: ${{ steps.stack.outputs.decision-index-edition }}
+
+runs:
+  using: composite
+  steps:
+    - id: stack
+      shell: bash
+      run: |
+        echo "llama-cpp-ref=$(jq -er '.llama_cpp.ref' stack.json)" >> "$GITHUB_OUTPUT"
+        echo "decision-index-ref=$(jq -er '.decision_index.ref' stack.json)" >> "$GITHUB_OUTPUT"
+        echo "decision-index-edition=$(jq -er '.decision_index.edition' stack.json)" >> "$GITHUB_OUTPUT"

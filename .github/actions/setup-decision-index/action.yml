@@ -1,0 +1,46 @@
+name: Set up Decision Index
+description: Install Decision Index at the pinned ref.
+
+inputs:
+  ref:
+    required: true
+  rebuild:
+    description: Install source-rebuild dependencies.
+    required: false
+    default: 'false'
+
+outputs:
+  executable:
+    value: ${{ steps.paths.outputs.executable }}
+  python-path:
+    value: ${{ steps.paths.outputs.python-path }}
+  hf-path:
+    value: ${{ steps.paths.outputs.hf-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check out Decision Index
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: apolinario/decision-index
+        ref: ${{ inputs.ref }}
+        path: .deps/decision-index
+        persist-credentials: false
+
+    - name: Install
+      shell: bash
+      env:
+        REBUILD: ${{ inputs.rebuild }}
+      run: |
+        python3 -m venv .deps/decision-index-venv
+        target=".deps/decision-index"
+        [[ "$REBUILD" == "true" ]] && target="$target[rebuild]"
+        .deps/decision-index-venv/bin/pip install --disable-pip-version-check --editable "$target"
+
+    - id: paths
+      shell: bash
+      run: |
+        echo "executable=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/decision-index" >> "$GITHUB_OUTPUT"
+        echo "python-path=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/python" >> "$GITHUB_OUTPUT"
+        echo "hf-path=$GITHUB_WORKSPACE/.deps/decision-index-venv/bin/hf" >> "$GITHUB_OUTPUT"

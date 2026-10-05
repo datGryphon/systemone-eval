@@ -1,30 +1,18 @@
 # systemone-eval
 
-Reproducible CPU evaluation of local decision models through llama.cpp's native
-`/v1/systemone` API.
+Reproducible CPU benchmarking for local decision models exposed through
+llama.cpp's `/v1/systemone` API.
 
-The initial stack is intentionally small:
+The project compares:
 
-- llama.cpp provides GGUF inference and the System One API.
-- Decision Index will provide the common quality/calibration harness.
-- GitHub-hosted Linux runners provide the common CPU/RAM environment.
-- A private Hugging Face dataset repository will hold frozen benchmark artifacts.
-- Evaluation records include latency, loaded-idle RSS, and peak llama-server RSS.
+- Decision Index quality
+- CPU inference latency
+- loaded-idle RAM
+- peak llama-server RAM
 
-## Current milestone
+`models.json` defines the model/quant profiles under test. `stack.json` pins the
+llama.cpp and Decision Index revisions used for a run.
 
-The bootstrap workflow proves that a pinned llama.cpp revision can load Julia-1 Q8 on
-a standard GitHub-hosted CPU runner and return valid `choice`, `noul`, and `score`
-probability outputs from `/v1/systemone`.
-
-The workflow records:
-
-- GitHub runner CPU/RAM/disk information
-- pinned llama.cpp revision
-- model repository and quant
-- llama-server loaded-idle RSS
-- llama-server process peak RSS
-- one System One request wall time
-- raw response and server log
-
-Decision Index integration comes after this inference path is verified.
+Pull requests and `main` both run the complete data-build and evaluation pipeline.
+For pipeline architecture, private artifact storage, and cleanup behavior, see
+[`.github/README.md`](.github/README.md).

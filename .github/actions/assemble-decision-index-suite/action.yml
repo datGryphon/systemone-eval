@@ -1,0 +1,91 @@
+name: Assemble Decision Index suite
+description: Rehydrate shards, verify the canonical Decision Index suite, and publish it.
+
+inputs:
+  decision-index:
+    required: true
+  repo:
+    required: true
+  revision:
+    required: true
+  edition:
+    required: true
+  ref:
+    required: true
+  base-ids:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download shards
+      shell: bash
+      env:
+        BIN_DIR: ${{ inputs.decision-index }}
+        HF_REPO: ${{ inputs.repo }}
+        HF_REVISION: ${{ inputs.revision }}
+        EDITION: ${{ inputs.edition }}
+        DI_REF: ${{ inputs.ref }}
+      run: |
+        HF="$(dirname "$BIN_DIR")/hf"
+        "$HF" download "$HF_REPO" --repo-type dataset --revision "$HF_REVISION" \
+          --include "decision-index/$EDITION/$DI_REF/base/*/normalized/*.jsonl" \
+          --include "decision-index/$EDITION/$DI_REF/added/*/added-rows.jsonl" \
+          --local-dir work/assemble/download
+
+    - name: Stage shards
+      shell: bash
+      env:
+        BIN_DIR: ${{ inputs.decision-index }}
+        EDITION: ${{ inputs.edition }}
+        DI_REF: ${{ inputs.ref }}
+      run: |
+        PYTHON="$(dirname "$BIN_DIR")/python"
+        "$PYTHON" "$GITHUB_WORKSPACE/scripts/stage_suite_shards.py" \
+          --source "work/assemble/download/decision-index/$EDITION/$DI_REF" \
+          --work work/assemble/rebuild \
+          --added-out work/assemble/added-rows.jsonl
+
+    - name: Build canonical rows
+      shell: bash
+      env:
+        DECISION_INDEX: ${{ inputs.decision-index }}
+        EDITION: ${{ inputs.edition }}
+        BASE_IDS: ${{ inputs.base-ids }}
+      run: |
+        read -ra ids <<< "$BASE_IDS"
+        "$DECISION_INDEX" suite rebuild \
+          --edition "$EDITION" \
+          --work work/assemble/rebuild \
+          --skip-download \
+          --skip-normalize \
+          --only "${ids[@]}"
+
+    - name: Import and verify
+      shell: bash
+      env:
+        DECISION_INDEX: ${{ inputs.decision-index }}
+        EDITION: ${{ inputs.edition }}
+      run: |
+        "$DECISION_INDEX" suite import \
+          --edition "$EDITION" \
+          --dir artifacts/frozen-suite \
+          --rows work/assemble/rebuild/artifacts/benchmark-suite/release-v2-rebuilt/selected-rows.jsonl.gz \
+          --added-rows work/assemble/added-rows.jsonl
+        "$DECISION_INDEX" suite verify --edition "$EDITION" --dir artifacts/frozen-suite
+        cp "$GITHUB_WORKSPACE/stack.json" artifacts/frozen-suite/systemone-stack.json
+
+    - name: Publish suite
+      shell: bash
+      env:
+        BIN_DIR: ${{ inputs.decision-index }}
+        HF_REPO: ${{ inputs.repo }}
+        HF_REVISION: ${{ inputs.revision }}
+        EDITION: ${{ inputs.edition }}
+        DI_REF: ${{ inputs.ref }}
+      run: |
+        HF="$(dirname "$BIN_DIR")/hf"
+        "$HF" upload "$HF_REPO" artifacts/frozen-suite \
+          "decision-index/$EDITION/$DI_REF/suite" \
+          --repo-type dataset \
+          --revision "$HF_REVISION"
