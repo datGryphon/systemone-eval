@@ -11,17 +11,17 @@ on:
       label:
         description: Result label; defaults to profile
         required: false
-        default: ''
+        default: ""
         type: string
       model_repo:
         description: Ad-hoc Hugging Face GGUF repo; ignores saved model settings
         required: false
-        default: ''
+        default: ""
         type: string
       quant:
         description: GGUF quant override
         required: false
-        default: ''
+        default: ""
         type: string
       shards:
         description: Evaluation shards; 0 uses the profile default
@@ -51,7 +51,7 @@ on:
       extra_server_args:
         description: Additional llama-server arguments
         required: false
-        default: ''
+        default: ""
         type: string
 
 permissions:
@@ -111,7 +111,7 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     steps:

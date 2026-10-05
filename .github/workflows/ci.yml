@@ -96,7 +96,7 @@ jobs:
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ needs.plan.outputs.decision-index-ref }}
-          rebuild: 'true'
+          rebuild: "true"
 
       - name: Rebuild shard
         env:
@@ -139,7 +139,7 @@ jobs:
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ needs.plan.outputs.decision-index-ref }}
-          rebuild: 'true'
+          rebuild: "true"
 
       - name: Rebuild shard
         env:
@@ -180,7 +180,7 @@ jobs:
         uses: ./.github/actions/setup-decision-index
         with:
           ref: ${{ needs.plan.outputs.decision-index-ref }}
-          rebuild: 'true'
+          rebuild: "true"
 
       - name: Assemble and verify
         uses: ./.github/actions/assemble-decision-index-suite

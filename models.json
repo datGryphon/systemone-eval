@@ -4,9 +4,12 @@
     "quant": "Q8_0",
     "shards": 32,
     "server_args": [
-      "--ctx-size", "8192",
-      "--batch-size", "8192",
-      "--ubatch-size", "8192"
+      "--ctx-size",
+      "8192",
+      "--batch-size",
+      "8192",
+      "--ubatch-size",
+      "8192"
     ]
   }
 }
