@@ -1,6 +1,6 @@
 {
-  "laya-q8": {
-    "repo": "ggml-org/Laya-GGUF",
+  "julia-1-q8": {
+    "repo": "ggml-org/Julia-1-GGUF",
     "quant": "Q8_0",
     "shards": 32,
     "server_args": [
