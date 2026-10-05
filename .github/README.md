@@ -25,7 +25,7 @@ flowchart TD
 
     subgraph EVAL["Evaluation"]
         SPLIT[32 weighted partitions]
-        MODEL[Julia-1 Q8 + pinned llama.cpp]
+        MODEL[Laya Q8 + pinned llama.cpp]
         SERVER[llama-server /v1/systemone]
         ENGINE[Decision Index HTTP engine]
         SCORE[Decision Index score]
@@ -47,7 +47,7 @@ It does not substitute representative fixtures for the real benchmark path:
 
 1. rebuild every base and added Decision Index shard;
 2. assemble and verify the complete frozen suite;
-3. evaluate the complete suite with Julia-1 Q8;
+3. evaluate the complete suite with Laya Q8;
 4. score the combined results with Decision Index.
 
 The evaluation defaults to 32 shards with at most 16 running concurrently so
@@ -101,7 +101,7 @@ decision-index/<edition>/<decision-index-ref>/
 ├── base/<group>/normalized/*.jsonl
 ├── added/<catalog-id>/added-rows.jsonl
 ├── suite/
-└── eval/julia-1-q8/<llama-ref>/
+└── eval/laya-q8/<llama-ref>/
     ├── shards/
     └── summary/
 ```
