@@ -2,9 +2,13 @@
 import argparse
 import gzip
 import json
+import random
 from pathlib import Path
 
 from decision_index.suite.io import Suite
+
+
+SHUFFLE_SEED = 0x53595331
 
 
 def main() -> int:
@@ -19,18 +23,26 @@ def main() -> int:
     if not 0 <= args.shard < args.shards:
         raise ValueError("shard must be between 0 and shards - 1")
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
     totals = [0] * args.shards
     counts = [0] * args.shards
+    rows = []
 
+    for row in Suite(args.suite, args.edition).rows(apply_exclusions=True):
+        weight = row["_evaluation"]["proxy_tokens"]
+        shard = min(range(args.shards), key=lambda i: (totals[i], counts[i], i))
+        totals[shard] += weight
+        counts[shard] += 1
+        if shard == args.shard:
+            rows.append(row)
+
+    random.Random(SHUFFLE_SEED + args.shard).shuffle(rows)
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(args.out, "wt", encoding="utf-8") as output:
-        for row in Suite(args.suite, args.edition).rows(apply_exclusions=True):
-            weight = row["_evaluation"]["proxy_tokens"]
-            shard = min(range(args.shards), key=lambda i: (totals[i], counts[i], i))
-            totals[shard] += weight
-            counts[shard] += 1
-            if shard == args.shard:
-                output.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+        for row in rows:
+            output.write(
+                json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n"
+            )
 
     print(
         f"shard {args.shard}/{args.shards}: {counts[args.shard]} rows, "
