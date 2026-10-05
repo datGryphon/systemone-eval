@@ -75,7 +75,7 @@ jobs:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
         run: >-
           "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
-          --models models.json --profile laya-q8
+          --models models.json --profile julia-1-q8
 
   base:
     name: Base / ${{ matrix.key }}
