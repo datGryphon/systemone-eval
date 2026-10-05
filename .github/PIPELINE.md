@@ -4,7 +4,7 @@
 
 - Decision Index builds and verifies the suite, runs the HTTP engine, and scores results.
 - llama.cpp serves the model through `/v1/systemone`.
-- GitHub Actions runs suite-build, evaluation, and scoring jobs.
+- GitHub Actions runs suite build, evaluation, and scoring jobs.
 - Hugging Face dataset repos store the canonical suite and evaluation outputs.
 
 Project code is limited to shard planning/staging, llama-server lifecycle and process
@@ -30,7 +30,7 @@ flowchart TD
     MAIN_BASELINE --> MAIN_RESULTS[(HF_SUITE_REPO<br/>main baseline results)]
 
     MAIN_SUITE --> MANUAL[Actions manual benchmark]
-    MANUAL --> MANUAL_RESULTS[(HF_SUITE_REPO<br/>benchmarks/run-id/label)]
+    MANUAL --> MANUAL_RESULTS[(HF_SUITE_REPO/main<br/>benchmarks/run-id/label)]
 ```
 
 Pull requests build and evaluate against their own `HF_SUITE_PR_REPO/pr-N` data.
@@ -55,8 +55,9 @@ flowchart TD
     CONFIG --> PLAN
     PLAN --> SPLIT
     SUITE --> SPLIT
-    PLAN --> SERVER
+    PLAN --> JOBS
     SPLIT --> JOBS
+    JOBS --> SERVER
     JOBS --> ENGINE
     ENGINE --> SERVER
     ENGINE --> SHARD_RESULTS
@@ -69,7 +70,7 @@ flowchart TD
 
 1. Rebuild base Decision Index source groups.
 2. Rebuild added benchmarks for the pinned edition.
-3. Assemble and verify the canonical suite with Decision Index.
+3. Assemble and verify the suite with Decision Index.
 4. Split scoreable rows across evaluation jobs.
 5. Run Decision Index against llama.cpp's `/v1/systemone` endpoint.
 6. Combine the result files and run Decision Index scoring.
@@ -120,10 +121,10 @@ Index assembly.
 
 | Purpose | Repository | Revision |
 | --- | --- | --- |
-| merged `main` | `HF_SUITE_REPO` | `main` |
+| `main` CI | `HF_SUITE_REPO` | `main` |
 | pull request N | `HF_SUITE_PR_REPO` | `pr-N` |
 
-Canonical suite data is stored under:
+Each CI storage revision uses:
 
 ```text
 decision-index/<edition>/<decision-index-ref>/
@@ -131,6 +132,9 @@ decision-index/<edition>/<decision-index-ref>/
 ├── added/<catalog-id>/added-rows.jsonl
 └── suite/
 ```
+
+On `main`, the `suite/` directory in `HF_SUITE_REPO/main` is the canonical suite
+used by manual benchmark runs.
 
 CI evaluation results are stored under:
 
