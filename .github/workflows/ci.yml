@@ -25,6 +25,9 @@ jobs:
       decision-index-ref: ${{ steps.stack.outputs.decision-index-ref }}
       edition: ${{ steps.stack.outputs.decision-index-edition }}
       llama-ref: ${{ steps.stack.outputs.llama-cpp-ref }}
+      evaluation: ${{ steps.matrix.outputs.evaluation }}
+      profile: ${{ steps.matrix.outputs.profile }}
+      shards: ${{ steps.matrix.outputs.shards }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,7 +74,8 @@ jobs:
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
         run: >-
-          "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"\n          --models models.json --profile laya-q8
+          "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
+          --models models.json --profile laya-q8
 
   base:
     name: Base / ${{ matrix.key }}
@@ -302,7 +306,7 @@ jobs:
         run: |
           "$HF" download "$HF_REPO" --repo-type dataset --revision "$HF_REVISION" \
             --include "decision-index/$EDITION/$DI_REF/suite/*" \
-            --include "decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/shards/*/decision-index/results.jsonl" \
+            --include "decision-index/$EDITION/$DI_REF/eval/${{ needs.plan.outputs.profile }}/$LLAMA_REF/shards/*/decision-index/results.jsonl" \
             --local-dir work/hf
 
       - name: Combine and score
