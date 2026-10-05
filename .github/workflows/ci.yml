@@ -71,7 +71,7 @@ jobs:
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
         run: >-
-          "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"
+          "$PYTHON" scripts/suite_plan.py --github-output "$GITHUB_OUTPUT"\n          --models models.json --profile laya-q8
 
   base:
     name: Base / ${{ matrix.key }}
@@ -191,15 +191,14 @@ jobs:
           base-ids: ${{ needs.plan.outputs.base-ids }}
 
   evaluate:
-    name: Evaluate Julia-1 Q8 / ${{ matrix.shard }}
+    name: Evaluate ${{ matrix.profile }} / ${{ matrix.shard }}
     needs: [plan, assemble]
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
       fail-fast: false
       max-parallel: 16
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+      matrix: ${{ fromJSON(needs.plan.outputs.evaluation) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -235,12 +234,13 @@ jobs:
           EDITION: ${{ needs.plan.outputs.edition }}
           DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
           SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ matrix.shards }}
         run: >-
           "$PYTHON" scripts/split_suite.py
           --suite "work/hf/decision-index/$EDITION/$DI_REF/suite"
           --edition "$EDITION"
           --shard "$SHARD"
-          --shards 32
+          --shards "$SHARDS"
           --out "work/eval-rows/$SHARD.jsonl.gz"
 
       - name: Evaluate
@@ -255,7 +255,7 @@ jobs:
           --decision-index "$DECISION_INDEX"
           --rows "work/eval-rows/$SHARD.jsonl.gz"
           --models models.json
-          --profile julia-1-q8
+          --profile "${{ matrix.profile }}"
           --stack stack.json
           --output artifacts/eval-shard
 
@@ -271,11 +271,11 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: >-
           "$HF" upload "$HF_REPO" artifacts/eval-shard
-          "decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/shards/$SHARD"
+          "decision-index/$EDITION/$DI_REF/eval/${{ matrix.profile }}/$LLAMA_REF/shards/$SHARD"
           --repo-type dataset --revision "$HF_REVISION"
 
   score:
-    name: Score Julia-1 Q8
+    name: Score ${{ needs.plan.outputs.profile }}
     needs: [plan, evaluate]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -311,10 +311,12 @@ jobs:
           EDITION: ${{ needs.plan.outputs.edition }}
           DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
           LLAMA_REF: ${{ needs.plan.outputs.llama-ref }}
+          PROFILE: ${{ needs.plan.outputs.profile }}
+          SHARDS: ${{ needs.plan.outputs.shards }}
         run: |
           mkdir -p artifacts/eval
-          base="work/hf/decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/shards"
-          for shard in {0..31}; do
+          base="work/hf/decision-index/$EDITION/$DI_REF/eval/$PROFILE/$LLAMA_REF/shards"
+          for ((shard=0; shard<SHARDS; shard++)); do
             cat "$base/$shard/decision-index/results.jsonl"
           done > artifacts/eval/results.jsonl
 
@@ -338,14 +340,14 @@ jobs:
           LLAMA_REF: ${{ needs.plan.outputs.llama-ref }}
         run: >-
           "$HF" upload "$HF_REPO" artifacts/eval
-          "decision-index/$EDITION/$DI_REF/eval/julia-1-q8/$LLAMA_REF/summary"
+          "decision-index/$EDITION/$DI_REF/eval/${{ needs.plan.outputs.profile }}/$LLAMA_REF/summary"
           --exclude results.jsonl
           --repo-type dataset --revision "$HF_REVISION"
 
       - name: Upload score artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: julia-1-q8-scores
+          name: ${{ needs.plan.outputs.profile }}-scores
           path: |
             artifacts/eval/benchmark-summary.json
             artifacts/eval/index.json
