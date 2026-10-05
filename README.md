@@ -38,3 +38,12 @@ pushes to `main`.
 - `stack.json`: pinned llama.cpp revision, Decision Index revision, and edition
 
 See [`.github/PIPELINE.md`](.github/PIPELINE.md) for the pipeline and storage layout.
+
+## License
+
+This repository's original code is licensed under the MIT License.
+
+Decision Index and llama.cpp are separate projects under their own licenses.
+Benchmark datasets, model weights, and other third-party data are not covered by
+this repository's MIT license and remain subject to their respective licenses and
+terms.
