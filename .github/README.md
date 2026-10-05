@@ -61,6 +61,21 @@ The suite format, hashes, source pins, and licensing rules remain upstream conce
 The runtime contract is the upstream
 [HTTP engine](https://github.com/apolinario/decision-index/blob/main/docs/engines.md#http).
 
+## Manual benchmarks
+
+After this workflow is on the default branch, **Actions → Benchmark model → Run
+workflow** runs a model against the already-published canonical suite. It does not
+rebuild Decision Index data.
+
+The default run uses `julia-1-q8` from `models.json`. Shards, concurrency, context,
+batch sizes, quant, and extra llama-server arguments can be overridden from the form.
+Setting `model_repo` switches to an ad-hoc model instead of inheriting the saved
+profile; supply a quant and label with it.
+
+Each manual run writes its shard results and score under
+`benchmarks/<github-run-id>/<label>/` in `HF_SUITE_REPO`, so experiments do not
+overwrite one another or the canonical suite.
+
 ## Data-build sharding
 
 A complete source rebuild needs more temporary disk than one standard GitHub runner.
