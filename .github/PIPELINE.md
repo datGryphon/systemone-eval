@@ -10,62 +10,58 @@
 Project code is limited to shard planning/staging, llama-server lifecycle and process
 metrics, and CI orchestration.
 
-## Pull request CI
+## Data lifecycle
 
 ```mermaid
 flowchart TD
-    A[Decision Index sources]
-    B[parallel rebuild jobs]
-    C[(HF_SUITE_PR_REPO<br/>pr-N / rebuilt shards)]
-    D[Decision Index assemble + verify]
-    E[(HF_SUITE_PR_REPO<br/>pr-N / verified PR suite)]
-    F[weighted shards<br/>Julia-1 Q8 via /v1/systemone]
-    G[(HF_SUITE_PR_REPO<br/>pr-N / evaluation shards)]
-    H[combine + Decision Index score]
-    I[(HF_SUITE_PR_REPO<br/>pr-N / summary)]
+    SOURCES[Decision Index sources]
+    REBUILD[parallel rebuild jobs]
 
-    A --> B --> C --> D --> E --> F --> G --> H --> I
+    SOURCES --> REBUILD
+
+    REBUILD --> PR_DATA[(HF_SUITE_PR_REPO<br/>pr-N rebuild data)]
+    PR_DATA --> PR_SUITE[assemble + verify PR suite]
+    PR_SUITE --> PR_BASELINE[Julia-1 Q8 baseline + score]
+    PR_BASELINE --> PR_RESULTS[(HF_SUITE_PR_REPO<br/>pr-N results)]
+
+    REBUILD --> MAIN_DATA[(HF_SUITE_REPO<br/>main rebuild data)]
+    MAIN_DATA --> MAIN_SUITE[assemble + verify canonical suite]
+    MAIN_SUITE --> MAIN_BASELINE[Julia-1 Q8 baseline + score]
+    MAIN_BASELINE --> MAIN_RESULTS[(HF_SUITE_REPO<br/>main baseline results)]
+
+    MAIN_SUITE --> MANUAL[Actions manual benchmark]
+    MANUAL --> MANUAL_RESULTS[(HF_SUITE_REPO<br/>benchmarks/run-id/label)]
 ```
 
-Each PR uses its own `pr-N` revision in `HF_SUITE_PR_REPO`. A new run for that PR
-replaces that revision.
+Pull requests build and evaluate against their own `HF_SUITE_PR_REPO/pr-N` data.
+Pushes to `main` rebuild `HF_SUITE_REPO/main`; that verified suite is the canonical
+input for later manual benchmarks.
 
-## Main CI
+## Evaluation run
 
 ```mermaid
 flowchart TD
-    A[Decision Index sources]
-    B[parallel rebuild jobs]
-    C[(HF_SUITE_REPO<br/>main / rebuilt shards)]
-    D[Decision Index assemble + verify]
-    E[(HF_SUITE_REPO<br/>main / canonical suite)]
-    F[weighted shards<br/>Julia-1 Q8 via /v1/systemone]
-    G[(HF_SUITE_REPO<br/>main / evaluation shards)]
-    H[combine + Decision Index score]
-    I[(HF_SUITE_REPO<br/>main / summary)]
+    CONFIG[model profile or ad-hoc model]
+    PLAN[resolve model + shard count]
+    SUITE[verified Decision Index suite]
+    SPLIT[balance + shuffle rows]
+    JOBS[parallel shard jobs]
+    SERVER[llama-server /v1/systemone<br/>one per shard job]
+    ENGINE[Decision Index HTTP engine]
+    SHARD_RESULTS[results.jsonl per shard]
+    COMBINE[combine shard results]
+    SCORE[Decision Index score]
 
-    A --> B --> C --> D --> E --> F --> G --> H --> I
+    CONFIG --> PLAN
+    PLAN --> SPLIT
+    SUITE --> SPLIT
+    PLAN --> SERVER
+    SPLIT --> JOBS
+    JOBS --> ENGINE
+    ENGINE --> SERVER
+    ENGINE --> SHARD_RESULTS
+    SHARD_RESULTS --> COMBINE --> SCORE
 ```
-
-A push to `main` rebuilds the suite in `HF_SUITE_REPO/main`. This is the canonical
-suite used by manual benchmark runs.
-
-## Manual benchmarks
-
-```mermaid
-flowchart TD
-    A[Actions inputs<br/>saved profile or ad-hoc GGUF]
-    B[resolve model + shard plan]
-    C[(HF_SUITE_REPO<br/>main / canonical suite)]
-    D[weighted shards<br/>selected model via /v1/systemone]
-    E[(HF_SUITE_REPO<br/>main / benchmarks/run-id/label/shards)]
-    F[combine + Decision Index score]
-    G[(HF_SUITE_REPO<br/>main / benchmarks/run-id/label/summary)]
-
-    A --> B --> C --> D --> E --> F --> G
-```
-
-Manual runs reuse the canonical suite. They do not rebuild or modify it.
 
 ## CI workflow
 
