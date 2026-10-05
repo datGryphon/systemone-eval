@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: Saved profile from models.json; inputs below override it
+        description: Saved profile from models.json; leave model_repo blank to use it
         required: false
         default: julia-1-q8
         type: string
@@ -14,7 +14,7 @@ on:
         default: ''
         type: string
       model_repo:
-        description: Hugging Face GGUF repo override
+        description: Ad-hoc Hugging Face GGUF repo; ignores saved model settings
         required: false
         default: ''
         type: string
@@ -165,6 +165,7 @@ jobs:
 
       - name: Evaluate
         env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           SERVER: ${{ steps.llama.outputs.server-path }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           SHARD: ${{ matrix.shard }}
