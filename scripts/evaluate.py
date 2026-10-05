@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from collections import Counter
+from dataclasses import asdict
 import json
 import os
 import platform
