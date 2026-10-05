@@ -10,6 +10,38 @@
 Project code is limited to shard planning/staging, llama-server lifecycle and process
 metrics, and CI orchestration.
 
+```mermaid
+flowchart TD
+    subgraph BUILD["Data build"]
+        DI[Decision Index sources]
+        SHARDS[parallel shard jobs]
+        STORE[(private HF storage)]
+        ASSEMBLE[assemble]
+        SUITE[verified frozen suite]
+
+        DI -->|suite rebuild| SHARDS
+        SHARDS -->|hf upload| STORE
+        STORE -->|hf download| ASSEMBLE
+        ASSEMBLE -->|DI import + verify| SUITE
+    end
+
+    subgraph EVAL["Evaluation"]
+        SPLIT[32 weighted partitions]
+        MODEL[Julia-1 Q8 + pinned llama.cpp]
+        SERVER[llama-server /v1/systemone]
+        ENGINE[Decision Index HTTP engine]
+        SCORE[Decision Index score]
+        RESULTS[quality + latency + RAM]
+
+        SUITE --> SPLIT
+        SPLIT --> ENGINE
+        MODEL --> SERVER
+        ENGINE --> SERVER
+        ENGINE --> SCORE
+        SCORE --> RESULTS
+    end
+```
+
 ## CI workflow
 
 [`ci.yml`](workflows/ci.yml) runs on pull requests and pushes to `main`.
