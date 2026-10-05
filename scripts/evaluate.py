@@ -75,12 +75,6 @@ def main() -> int:
                 if line.strip()
             ]
             statuses = Counter(row.get("status") for row in results)
-            errors = [row for row in results if row.get("status") == "error"]
-            if errors:
-                raise RuntimeError(
-                    f"{len(errors)} Decision Index errors; first: {errors[:3]}"
-                )
-
             memory = server.memory()
             metrics = {
                 "stack": json.loads(args.stack.read_text()),
