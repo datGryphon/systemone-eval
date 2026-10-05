@@ -37,15 +37,17 @@ def main() -> int:
     parser.add_argument("--github-output", required=True, type=Path)
     args = parser.parse_args()
 
-    if args.profile:
-        model = load_profile(args.models, args.profile)
-    else:
-        model = ModelProfile(repo="", quant="", shards=32)
-
     if args.repo:
-        model = replace(model, repo=args.repo)
-    if args.quant:
-        model = replace(model, quant=args.quant)
+        if not args.quant:
+            parser.error("--quant is required with --repo")
+        model = ModelProfile(repo=args.repo, quant=args.quant, shards=args.shards or 32)
+    elif args.profile:
+        model = load_profile(args.models, args.profile)
+        if args.quant:
+            model = replace(model, quant=args.quant)
+    else:
+        parser.error("a preset --profile or ad-hoc --repo and --quant are required")
+
     if args.shards:
         if args.shards < 1:
             parser.error("--shards must be positive")
@@ -66,12 +68,9 @@ def main() -> int:
         server_args += tuple(shlex.split(args.extra_server_args))
     model = replace(model, server_args=server_args)
 
-    if not model.repo or not model.quant:
-        parser.error("a preset profile or both --repo and --quant are required")
-
-    label = args.label or args.profile
+    label = args.label or (args.profile if not args.repo else "")
     if not label:
-        parser.error("--label is required for an ad-hoc model")
+        parser.error("--label is required with --repo")
     if not re.fullmatch(r"[A-Za-z0-9._-]+", label):
         parser.error("--label may contain only letters, numbers, '.', '_', and '-'")
 
