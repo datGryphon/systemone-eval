@@ -10,53 +10,67 @@
 Project code is limited to shard planning/staging, llama-server lifecycle and process
 metrics, and CI orchestration.
 
+## CI data flow
+
 ```mermaid
 flowchart TD
-    subgraph SUITE["Canonical suite build"]
-        SOURCES[Decision Index sources]
-        BUILD[parallel rebuild jobs]
-        ASSEMBLE[Decision Index assemble + verify]
-        CANON[(canonical suite on Hugging Face)]
+    SOURCES[Decision Index sources]
+    BUILD[parallel rebuild jobs]
+    ASSEMBLE[Decision Index assemble + verify]
+    SPLIT[weighted evaluation shards]
+    JULIA[Julia-1 Q8]
+    SERVER[llama-server /v1/systemone]
+    ENGINE[Decision Index HTTP engine]
+    SCORE[Decision Index score]
 
-        SOURCES --> BUILD
-        BUILD --> ASSEMBLE
-        ASSEMBLE --> CANON
-    end
+    PR_STORE[(HF_SUITE_PR_REPO<br/>pr-N)]
+    MAIN_STORE[(HF_SUITE_REPO<br/>main)]
 
-    subgraph CI["CI baseline"]
-        CI_SPLIT[weighted evaluation shards]
-        JULIA[Julia-1 Q8]
-        CI_SERVER[llama-server /v1/systemone]
-        CI_ENGINE[Decision Index HTTP engine]
-        CI_SCORE[Decision Index score]
+    SOURCES --> BUILD
+    BUILD -->|pull request| PR_STORE
+    BUILD -->|push to main| MAIN_STORE
 
-        CANON --> CI_SPLIT
-        CI_SPLIT --> CI_ENGINE
-        JULIA --> CI_SERVER
-        CI_ENGINE --> CI_SERVER
-        CI_ENGINE --> CI_SCORE
-    end
+    PR_STORE -->|PR shard data| ASSEMBLE
+    MAIN_STORE -->|main shard data| ASSEMBLE
 
-    subgraph MANUAL["Manual benchmark"]
-        INPUTS[Actions inputs<br/>saved profile or ad-hoc GGUF]
-        PLAN[resolve model + shard plan]
-        RUN_SPLIT[weighted evaluation shards]
-        MODEL[selected model]
-        RUN_SERVER[llama-server /v1/systemone]
-        RUN_ENGINE[Decision Index HTTP engine]
-        RUN_SCORE[Decision Index score]
-        RESULTS[(benchmarks/run-id/label)]
+    ASSEMBLE -->|PR verified suite| PR_STORE
+    ASSEMBLE -->|main verified suite| MAIN_STORE
 
-        INPUTS --> PLAN
-        PLAN --> MODEL
-        PLAN --> RUN_SPLIT
-        CANON --> RUN_SPLIT
-        RUN_SPLIT --> RUN_ENGINE
-        MODEL --> RUN_SERVER
-        RUN_ENGINE --> RUN_SERVER
-        RUN_ENGINE --> RUN_SCORE
-        RUN_SCORE --> RESULTS
-    end
+    PR_STORE -->|PR suite| SPLIT
+    MAIN_STORE -->|main suite| SPLIT
+
+    SPLIT --> ENGINE
+    JULIA --> SERVER
+    ENGINE --> SERVER
+    ENGINE --> SCORE
+
+    SCORE -->|PR results| PR_STORE
+    SCORE -->|main results| MAIN_STORE
+```
+
+## Manual benchmark data flow
+
+```mermaid
+flowchart TD
+    INPUTS[Actions inputs<br/>saved profile or ad-hoc GGUF]
+    PLAN[resolve model + shard plan]
+    CANON[(HF_SUITE_REPO/main<br/>canonical verified suite)]
+    SPLIT[weighted evaluation shards]
+    MODEL[selected model]
+    SERVER[llama-server /v1/systemone]
+    ENGINE[Decision Index HTTP engine]
+    SCORE[Decision Index score]
+    RESULTS[(HF_SUITE_REPO/main<br/>benchmarks/run-id/label)]
+
+    INPUTS --> PLAN
+    PLAN --> MODEL
+    PLAN --> SPLIT
+    CANON --> SPLIT
+    SPLIT --> ENGINE
+    MODEL --> SERVER
+    ENGINE --> SERVER
+    ENGINE --> SCORE
+    SCORE --> RESULTS
 ```
 
 ## CI workflow
