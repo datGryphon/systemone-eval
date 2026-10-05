@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from dataclasses import dataclass
 import json
 import subprocess
 import time
@@ -6,9 +7,19 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+
+@dataclass(frozen=True)
+class ModelProfile:
+    repo: str
+    quant: str
+    shards: int
+    server_args: tuple[str, ...] = ()
+
+
 def get_json(url: str, timeout: float = 5.0) -> dict:
     with urllib.request.urlopen(url, timeout=timeout) as response:
         return json.load(response)
+
 
 def process_memory_kib(pid: int) -> dict[str, int]:
     values: dict[str, int] = {}
@@ -18,18 +29,48 @@ def process_memory_kib(pid: int) -> dict[str, int]:
             values[key] = int(rest.split()[0])
     return values
 
-def load_profile(path: Path, name: str) -> dict:
+
+def load_profile(path: Path, name: str) -> ModelProfile:
     profiles = json.loads(path.read_text())
     try:
-        profile = profiles[name]
+        raw = profiles[name]
     except KeyError as exc:
         raise ValueError(f"unknown model profile: {name}") from exc
-    if not {"repo", "quant"} <= set(profile):
-        raise ValueError(f"model profile {name!r} must contain repo and quant")
-    return profile
+
+    try:
+        repo = raw["repo"]
+        quant = raw["quant"]
+        shards = raw["shards"]
+    except KeyError as exc:
+        raise ValueError(
+            f"model profile {name!r} must contain repo, quant, and shards"
+        ) from exc
+
+    server_args = raw.get("server_args", [])
+    if not isinstance(shards, int) or shards < 1:
+        raise ValueError(f"model profile {name!r} shards must be a positive integer")
+    if not isinstance(server_args, list) or not all(
+        isinstance(arg, str) for arg in server_args
+    ):
+        raise ValueError(f"model profile {name!r} server_args must be a list of strings")
+
+    return ModelProfile(
+        repo=str(repo),
+        quant=str(quant),
+        shards=shards,
+        server_args=tuple(server_args),
+    )
+
 
 class SystemOneServer:
-    def __init__(self, server: Path, profile: dict[str, str], output_dir: Path, port: int = 8080, startup_timeout: float = 180.0):
+    def __init__(
+        self,
+        server: Path,
+        profile: ModelProfile,
+        output_dir: Path,
+        port: int = 8080,
+        startup_timeout: float = 180.0,
+    ):
         self.server = server
         self.profile = profile
         self.output_dir = output_dir
@@ -46,12 +87,12 @@ class SystemOneServer:
         command = [
             str(self.server),
             "-hf",
-            f"{self.profile['repo']}:{self.profile['quant']}",
+            f"{self.profile.repo}:{self.profile.quant}",
             "--host",
             "127.0.0.1",
             "--port",
             str(self.port),
-            *self.profile.get("server_args", []),
+            *self.profile.server_args,
         ]
         self._log_handle = self.log_path.open("w")
         self.process = subprocess.Popen(
@@ -64,7 +105,9 @@ class SystemOneServer:
         last_error: Exception | None = None
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
-                raise RuntimeError(f"llama-server exited with code {self.process.returncode}")
+                raise RuntimeError(
+                    f"llama-server exited with code {self.process.returncode}"
+                )
             try:
                 get_json(f"{self.base_url}/health")
                 self.loaded_memory = process_memory_kib(self.process.pid)
