@@ -12,33 +12,50 @@ metrics, and CI orchestration.
 
 ```mermaid
 flowchart TD
-    subgraph BUILD["Data build"]
-        DI[Decision Index sources]
-        SHARDS[parallel shard jobs]
-        STORE[(private HF storage)]
-        ASSEMBLE[assemble]
-        SUITE[verified frozen suite]
+    subgraph SUITE["Canonical suite build"]
+        SOURCES[Decision Index sources]
+        BUILD[parallel rebuild jobs]
+        ASSEMBLE[Decision Index assemble + verify]
+        CANON[(canonical suite on Hugging Face)]
 
-        DI -->|suite rebuild| SHARDS
-        SHARDS -->|hf upload| STORE
-        STORE -->|hf download| ASSEMBLE
-        ASSEMBLE -->|DI import + verify| SUITE
+        SOURCES --> BUILD
+        BUILD --> ASSEMBLE
+        ASSEMBLE --> CANON
     end
 
-    subgraph EVAL["Evaluation"]
-        SPLIT[32 weighted partitions]
-        MODEL[Julia-1 Q8 + pinned llama.cpp]
-        SERVER[llama-server /v1/systemone]
-        ENGINE[Decision Index HTTP engine]
-        SCORE[Decision Index score]
-        RESULTS[quality + latency + RAM]
+    subgraph CI["CI baseline"]
+        CI_SPLIT[weighted evaluation shards]
+        JULIA[Julia-1 Q8]
+        CI_SERVER[llama-server /v1/systemone]
+        CI_ENGINE[Decision Index HTTP engine]
+        CI_SCORE[Decision Index score]
 
-        SUITE --> SPLIT
-        SPLIT --> ENGINE
-        MODEL --> SERVER
-        ENGINE --> SERVER
-        ENGINE --> SCORE
-        SCORE --> RESULTS
+        CANON --> CI_SPLIT
+        CI_SPLIT --> CI_ENGINE
+        JULIA --> CI_SERVER
+        CI_ENGINE --> CI_SERVER
+        CI_ENGINE --> CI_SCORE
+    end
+
+    subgraph MANUAL["Manual benchmark"]
+        INPUTS[Actions inputs<br/>saved profile or ad-hoc GGUF]
+        PLAN[resolve model + shard plan]
+        RUN_SPLIT[weighted evaluation shards]
+        MODEL[selected model]
+        RUN_SERVER[llama-server /v1/systemone]
+        RUN_ENGINE[Decision Index HTTP engine]
+        RUN_SCORE[Decision Index score]
+        RESULTS[(benchmarks/run-id/label)]
+
+        INPUTS --> PLAN
+        PLAN --> MODEL
+        PLAN --> RUN_SPLIT
+        CANON --> RUN_SPLIT
+        RUN_SPLIT --> RUN_ENGINE
+        MODEL --> RUN_SERVER
+        RUN_ENGINE --> RUN_SERVER
+        RUN_ENGINE --> RUN_SCORE
+        RUN_SCORE --> RESULTS
     end
 ```
 
