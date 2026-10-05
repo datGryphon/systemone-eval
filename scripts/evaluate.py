@@ -84,7 +84,7 @@ def main() -> int:
             metrics = {
                 "stack": json.loads(args.stack.read_text()),
                 "model_profile": args.profile,
-                "model": profile,
+                "model": asdict(profile),
                 "github": {
                     "sha": os.getenv("GITHUB_SHA"),
                     "run_id": os.getenv("GITHUB_RUN_ID"),
