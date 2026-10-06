@@ -185,6 +185,7 @@ jobs:
           SERVER: ${{ steps.llama.outputs.server-path }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           SHARD: ${{ matrix.shard }}
+          PYTHONUNBUFFERED: "1"
         run: >-
           python3 scripts/evaluate.py
           --server "$SERVER"
