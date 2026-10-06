@@ -5,18 +5,11 @@ import json
 import random
 from pathlib import Path
 
-from decision_index.suite.io import Suite
+from decision_index.suite.io import Suite, read_jsonl
 
 
 SHUFFLE_SEED = 0x53595331
 
-
-def rows_from_file(path: Path):
-    opener = gzip.open if path.suffix == ".gz" else open
-    with opener(path, "rt", encoding="utf-8") as source:
-        for line in source:
-            if line.strip():
-                yield json.loads(line)
 
 
 def main() -> int:
@@ -43,7 +36,7 @@ def main() -> int:
     source_rows = (
         Suite(args.suite, args.edition).rows(apply_exclusions=True)
         if args.suite
-        else rows_from_file(args.rows)
+        else read_jsonl(args.rows)
     )
 
     for row in source_rows:
