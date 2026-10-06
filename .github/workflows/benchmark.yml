@@ -23,6 +23,11 @@ on:
         required: false
         default: ""
         type: string
+      sample_rows:
+        description: Stratified sample rows; 0 runs the full suite
+        required: false
+        default: 0
+        type: number
       shards:
         description: Evaluation shards; 0 uses the profile default
         required: false
@@ -151,17 +156,28 @@ jobs:
       - name: Select evaluation rows
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
+          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           EDITION: ${{ needs.plan.outputs.edition }}
           DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
+          SAMPLE_ROWS: ${{ inputs.sample_rows }}
           SHARD: ${{ matrix.shard }}
           SHARDS: ${{ matrix.shards }}
-        run: >-
-          "$PYTHON" scripts/split_suite.py
-          --suite "work/hf/decision-index/$EDITION/$DI_REF/suite"
-          --edition "$EDITION"
-          --shard "$SHARD"
-          --shards "$SHARDS"
-          --out "work/eval-rows/$SHARD.jsonl.gz"
+        run: |
+          source_args=(--suite "work/hf/decision-index/$EDITION/$DI_REF/suite" --edition "$EDITION")
+          if (( SAMPLE_ROWS > 0 )); then
+            "$DECISION_INDEX" suite sample \
+              --edition "$EDITION" \
+              --dir "work/hf/decision-index/$EDITION/$DI_REF/suite" \
+              --n "$SAMPLE_ROWS" \
+              --out work/sample-rows.jsonl.gz
+            source_args=(--rows work/sample-rows.jsonl.gz)
+          fi
+
+          "$PYTHON" scripts/split_suite.py \
+            "${source_args[@]}" \
+            --shard "$SHARD" \
+            --shards "$SHARDS" \
+            --out "work/eval-rows/$SHARD.jsonl.gz"
 
       - name: Evaluate
         env:
@@ -228,6 +244,7 @@ jobs:
           DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
           PROFILE: ${{ needs.plan.outputs.profile }}
           SHARDS: ${{ needs.plan.outputs.shards }}
+          SAMPLE_ROWS: ${{ inputs.sample_rows }}
         run: |
           mkdir -p artifacts/eval
           base="work/hf/benchmarks/$GITHUB_RUN_ID/$PROFILE/shards"
@@ -242,7 +259,9 @@ jobs:
             --engine http \
             --out artifacts/eval
 
-          jq -e '.complete == true' artifacts/eval/scores.json
+          if (( SAMPLE_ROWS == 0 )); then
+            jq -e '.complete == true' artifacts/eval/scores.json
+          fi
 
       - name: Publish scores
         env:

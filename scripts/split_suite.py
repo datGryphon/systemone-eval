@@ -5,20 +5,26 @@ import json
 import random
 from pathlib import Path
 
-from decision_index.suite.io import Suite
+from decision_index.suite.io import Suite, read_jsonl
 
 
 SHUFFLE_SEED = 0x53595331
 
 
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--suite", required=True, type=Path)
-    parser.add_argument("--edition", required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--suite", type=Path)
+    source.add_argument("--rows", type=Path)
+    parser.add_argument("--edition")
     parser.add_argument("--shard", required=True, type=int)
     parser.add_argument("--shards", required=True, type=int)
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args()
+
+    if args.suite and not args.edition:
+        parser.error("--edition is required with --suite")
 
     if not 0 <= args.shard < args.shards:
         raise ValueError("shard must be between 0 and shards - 1")
@@ -27,7 +33,13 @@ def main() -> int:
     counts = [0] * args.shards
     rows = []
 
-    for row in Suite(args.suite, args.edition).rows(apply_exclusions=True):
+    source_rows = (
+        Suite(args.suite, args.edition).rows(apply_exclusions=True)
+        if args.suite
+        else read_jsonl(args.rows)
+    )
+
+    for row in source_rows:
         weight = row["_evaluation"]["proxy_tokens"]
         shard = min(range(args.shards), key=lambda i: (totals[i], counts[i], i))
         totals[shard] += weight
