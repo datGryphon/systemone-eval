@@ -74,10 +74,20 @@ def main() -> int:
     if not re.fullmatch(r"[A-Za-z0-9._-]+", label):
         parser.error("--label may contain only letters, numbers, '.', '_', and '-'")
 
-    matrix = {
+    if not 2 <= model.shards <= 512:
+        parser.error("--shards must be between 2 and 512")
+
+    split = (model.shards + 1) // 2
+    matrix_a = {
         "include": [
             {"profile": label, "shard": shard, "shards": model.shards}
-            for shard in range(model.shards)
+            for shard in range(split)
+        ]
+    }
+    matrix_b = {
+        "include": [
+            {"profile": label, "shard": shard, "shards": model.shards}
+            for shard in range(split, model.shards)
         ]
     }
     models = {label: asdict(model)}
@@ -86,7 +96,11 @@ def main() -> int:
         print(f"profile={label}", file=output)
         print(f"shards={model.shards}", file=output)
         print(
-            "matrix=" + json.dumps(matrix, separators=(",", ":")),
+            "matrix-a=" + json.dumps(matrix_a, separators=(",", ":")),
+            file=output,
+        )
+        print(
+            "matrix-b=" + json.dumps(matrix_b, separators=(",", ":")),
             file=output,
         )
         print(
