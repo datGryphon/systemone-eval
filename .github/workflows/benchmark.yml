@@ -13,6 +13,11 @@ on:
         required: false
         default: ""
         type: string
+      llama_ref:
+        description: Optional llama.cpp commit SHA; overrides repository variable and stack.json
+        required: false
+        default: ""
+        type: string
       model_repo:
         description: Ad-hoc Hugging Face GGUF repo; ignores saved model settings
         required: false
@@ -84,7 +89,7 @@ jobs:
       models: ${{ steps.model.outputs.models }}
       decision-index-ref: ${{ steps.stack.outputs.decision-index-ref }}
       edition: ${{ steps.stack.outputs.decision-index-edition }}
-      llama-ref: ${{ steps.stack.outputs.llama-cpp-ref }}
+      llama-ref: ${{ steps.llama.outputs.ref }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -93,6 +98,20 @@ jobs:
 
       - id: stack
         uses: ./.github/actions/read-stack
+
+      - id: llama
+        name: Resolve llama.cpp revision
+        env:
+          OVERRIDE: ${{ inputs.llama_ref }}
+          TEST_REF: ${{ vars.LLAMA_CPP_TEST_REF }}
+          PIN: ${{ steps.stack.outputs.llama-cpp-ref }}
+        run: |
+          ref="${OVERRIDE:-${TEST_REF:-$PIN}}"
+          if [[ ! "$ref" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "llama.cpp ref must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - id: model
         name: Resolve model
@@ -189,6 +208,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           SERVER: ${{ steps.llama.outputs.server-path }}
+          LLAMA_CPP_REF: ${{ needs.plan.outputs.llama-ref }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           SHARD: ${{ matrix.shard }}
           PYTHONUNBUFFERED: "1"
@@ -283,6 +303,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           SERVER: ${{ steps.llama.outputs.server-path }}
+          LLAMA_CPP_REF: ${{ needs.plan.outputs.llama-ref }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           SHARD: ${{ matrix.shard }}
           PYTHONUNBUFFERED: "1"
