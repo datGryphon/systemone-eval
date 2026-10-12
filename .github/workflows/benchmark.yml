@@ -13,6 +13,11 @@ on:
         required: false
         default: ""
         type: string
+      llama_ref:
+        description: Optional llama.cpp commit SHA; overrides repository variable and stack.json
+        required: false
+        default: ""
+        type: string
       model_repo:
         description: Ad-hoc Hugging Face GGUF repo; ignores saved model settings
         required: false
@@ -28,6 +33,16 @@ on:
         required: false
         default: 0
         type: number
+      areas:
+        description: Comma-separated DI area IDs (e.g. tools,retrieval); empty selects all
+        required: false
+        default: ""
+        type: string
+      benchmarks:
+        description: Comma-separated benchmark IDs (e.g. 1,3,62); union with areas
+        required: false
+        default: ""
+        type: string
       shards:
         description: Evaluation shards; 0 uses the profile default
         required: false
@@ -74,7 +89,7 @@ jobs:
       models: ${{ steps.model.outputs.models }}
       decision-index-ref: ${{ steps.stack.outputs.decision-index-ref }}
       edition: ${{ steps.stack.outputs.decision-index-edition }}
-      llama-ref: ${{ steps.stack.outputs.llama-cpp-ref }}
+      llama-ref: ${{ steps.llama.outputs.ref }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -83,6 +98,20 @@ jobs:
 
       - id: stack
         uses: ./.github/actions/read-stack
+
+      - id: llama
+        name: Resolve llama.cpp revision
+        env:
+          OVERRIDE: ${{ inputs.llama_ref }}
+          TEST_REF: ${{ vars.LLAMA_CPP_TEST_REF }}
+          PIN: ${{ steps.stack.outputs.llama-cpp-ref }}
+        run: |
+          ref="${OVERRIDE:-${TEST_REF:-$PIN}}"
+          if [[ ! "$ref" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "llama.cpp ref must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - id: model
         name: Resolve model
@@ -157,33 +186,29 @@ jobs:
       - name: Select evaluation rows
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
-          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           EDITION: ${{ needs.plan.outputs.edition }}
           DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
           SAMPLE_ROWS: ${{ inputs.sample_rows }}
+          AREAS: ${{ inputs.areas }}
+          BENCHMARKS: ${{ inputs.benchmarks }}
           SHARD: ${{ matrix.shard }}
           SHARDS: ${{ matrix.shards }}
-        run: |
-          source_args=(--suite "work/hf/decision-index/$EDITION/$DI_REF/suite" --edition "$EDITION")
-          if (( SAMPLE_ROWS > 0 )); then
-            "$DECISION_INDEX" suite sample \
-              --edition "$EDITION" \
-              --dir "work/hf/decision-index/$EDITION/$DI_REF/suite" \
-              --n "$SAMPLE_ROWS" \
-              --out work/sample-rows.jsonl.gz
-            source_args=(--rows work/sample-rows.jsonl.gz)
-          fi
-
-          "$PYTHON" scripts/split_suite.py \
-            "${source_args[@]}" \
-            --shard "$SHARD" \
-            --shards "$SHARDS" \
-            --out "work/eval-rows/$SHARD.jsonl.gz"
+        run: >-
+          "$PYTHON" scripts/split_suite.py
+          --suite "work/hf/decision-index/$EDITION/$DI_REF/suite"
+          --edition "$EDITION"
+          --sample-rows "$SAMPLE_ROWS"
+          --areas "$AREAS"
+          --benchmarks "$BENCHMARKS"
+          --shard "$SHARD"
+          --shards "$SHARDS"
+          --out "work/eval-rows/$SHARD.jsonl.gz"
 
       - name: Evaluate
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           SERVER: ${{ steps.llama.outputs.server-path }}
+          LLAMA_CPP_REF: ${{ needs.plan.outputs.llama-ref }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           SHARD: ${{ matrix.shard }}
           PYTHONUNBUFFERED: "1"
@@ -256,33 +281,29 @@ jobs:
       - name: Select evaluation rows
         env:
           PYTHON: ${{ steps.decision-index.outputs.python-path }}
-          DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           EDITION: ${{ needs.plan.outputs.edition }}
           DI_REF: ${{ needs.plan.outputs.decision-index-ref }}
           SAMPLE_ROWS: ${{ inputs.sample_rows }}
+          AREAS: ${{ inputs.areas }}
+          BENCHMARKS: ${{ inputs.benchmarks }}
           SHARD: ${{ matrix.shard }}
           SHARDS: ${{ matrix.shards }}
-        run: |
-          source_args=(--suite "work/hf/decision-index/$EDITION/$DI_REF/suite" --edition "$EDITION")
-          if (( SAMPLE_ROWS > 0 )); then
-            "$DECISION_INDEX" suite sample \
-              --edition "$EDITION" \
-              --dir "work/hf/decision-index/$EDITION/$DI_REF/suite" \
-              --n "$SAMPLE_ROWS" \
-              --out work/sample-rows.jsonl.gz
-            source_args=(--rows work/sample-rows.jsonl.gz)
-          fi
-
-          "$PYTHON" scripts/split_suite.py \
-            "${source_args[@]}" \
-            --shard "$SHARD" \
-            --shards "$SHARDS" \
-            --out "work/eval-rows/$SHARD.jsonl.gz"
+        run: >-
+          "$PYTHON" scripts/split_suite.py
+          --suite "work/hf/decision-index/$EDITION/$DI_REF/suite"
+          --edition "$EDITION"
+          --sample-rows "$SAMPLE_ROWS"
+          --areas "$AREAS"
+          --benchmarks "$BENCHMARKS"
+          --shard "$SHARD"
+          --shards "$SHARDS"
+          --out "work/eval-rows/$SHARD.jsonl.gz"
 
       - name: Evaluate
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_READ }}
           SERVER: ${{ steps.llama.outputs.server-path }}
+          LLAMA_CPP_REF: ${{ needs.plan.outputs.llama-ref }}
           DECISION_INDEX: ${{ steps.decision-index.outputs.executable }}
           SHARD: ${{ matrix.shard }}
           PYTHONUNBUFFERED: "1"
@@ -346,6 +367,8 @@ jobs:
           PROFILE: ${{ needs.plan.outputs.profile }}
           SHARDS: ${{ needs.plan.outputs.shards }}
           SAMPLE_ROWS: ${{ inputs.sample_rows }}
+          AREAS: ${{ inputs.areas }}
+          BENCHMARKS: ${{ inputs.benchmarks }}
         run: |
           mkdir -p artifacts/eval
           base="work/hf/benchmarks/$GITHUB_RUN_ID/$PROFILE/shards"
@@ -360,7 +383,7 @@ jobs:
             --engine http \
             --out artifacts/eval
 
-          if (( SAMPLE_ROWS == 0 )); then
+          if (( SAMPLE_ROWS == 0 )) && [[ -z "$AREAS" && -z "$BENCHMARKS" ]]; then
             jq -e '.complete == true' artifacts/eval/scores.json
           fi
 

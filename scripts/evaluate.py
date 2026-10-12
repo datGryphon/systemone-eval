@@ -49,6 +49,8 @@ def main() -> int:
     args = parser.parse_args()
 
     profile = load_profile(args.models, args.profile)
+    stack = json.loads(args.stack.read_text())
+    stack["llama_cpp"]["ref"] = os.environ.get("LLAMA_CPP_REF") or stack["llama_cpp"]["ref"]
     args.output.mkdir(parents=True, exist_ok=True)
     run_dir = args.output / "decision-index"
 
@@ -77,7 +79,7 @@ def main() -> int:
             statuses = Counter(row.get("status") for row in results)
             memory = server.memory()
             metrics = {
-                "stack": json.loads(args.stack.read_text()),
+                "stack": stack,
                 "model_profile": args.profile,
                 "model": asdict(profile),
                 "github": {

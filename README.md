@@ -18,7 +18,10 @@ published canonical suite.
 A run can use a saved profile from `models.json`, or an ad-hoc Hugging Face GGUF
 repo with a quant and result label. The workflow also exposes shard count,
 parallelism, context size, batch size, physical batch size, and extra
-`llama-server` arguments.
+`llama-server` arguments. An optional `llama_ref` input overrides the
+`LLAMA_CPP_TEST_REF` GitHub Actions repository variable; otherwise the pinned
+`stack.json` revision is used. Overrides must be full 40-character commit SHAs,
+and the effective SHA is recorded in the benchmark metrics.
 
 Manual runs do not rebuild the Decision Index suite. Results are stored under:
 
